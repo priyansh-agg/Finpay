@@ -1,0 +1,5 @@
+.venv
+venv
+artifacts/*.joblib
+data/*.csv
+__pycache__
