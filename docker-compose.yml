@@ -1,0 +1,93 @@
+name: finpay
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-finpay}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-finpay}
+      POSTGRES_DB: ${POSTGRES_DB:-finpay}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-finpay} -d ${POSTGRES_DB:-finpay}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "\"\"", "--appendonly", "no"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  ml-service:
+    build: ./ml-service
+    environment:
+      FINPAY_DB_URL: postgresql://${POSTGRES_USER:-finpay}:${POSTGRES_PASSWORD:-finpay}@postgres:5432/${POSTGRES_DB:-finpay}
+      ARTIFACT_DIR: /app/artifacts
+    ports:
+      - "${ML_SERVICE_PORT:-9000}:9000"
+    volumes:
+      - ./ml-service/artifacts:/app/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:9000/health').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  gateway:
+    build: ./gateway
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-finpay}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-finpay}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-finpay}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      FINPAY_JWT_SECRET: ${JWT_SECRET:-local-dev-only-change-me-0000000000000000000000000000}
+      FINPAY_JWT_TTL_MINUTES: ${JWT_TTL_MINUTES:-120}
+      FINPAY_APIKEY_PEPPER: ${API_KEY_PEPPER:-local-dev-only-pepper-change-me}
+      FINPAY_RL_CAPACITY: ${FINPAY_RL_CAPACITY:-120}
+      FINPAY_RL_REFILL: ${FINPAY_RL_REFILL:-40}
+      FINPAY_ML_BASE_URL: ${ML_SERVICE_URL:-http://ml-service:9000}
+      FINPAY_SIMULATOR_MODE: ${SIMULATOR_MODE:-DETERMINISTIC}
+      SPRING_AI_OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ml-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "5173:80"
+    depends_on:
+      gateway:
+        condition: service_started
+
+volumes:
+  pgdata:

@@ -1,0 +1,33 @@
+# Java / Maven
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+ml-service/data/*.csv
+ml-service/artifacts/*.pkl
+ml-service/artifacts/*.joblib
+
+# Node
+node_modules/
+dashboard/dist/
+dashboard/.vite/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Env
+.env
+*.local
+
+# Logs
+*.log

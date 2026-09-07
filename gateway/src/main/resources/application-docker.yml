@@ -1,0 +1,14 @@
+# Overrides applied when SPRING_PROFILES_ACTIVE=docker (see docker-compose.yml).
+# All connection details come from environment variables injected by compose;
+# this file exists mainly to make the active profile explicit.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: none
+logging:
+  # Spring Boot 3.4 built-in structured logging — one JSON object per line, for containers.
+  structured:
+    format:
+      console: ecs
+  level:
+    com.finpay: INFO

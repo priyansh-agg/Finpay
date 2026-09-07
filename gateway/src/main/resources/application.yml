@@ -1,0 +1,112 @@
+spring:
+  application:
+    name: finpay-gateway
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/finpay}
+    username: ${SPRING_DATASOURCE_USERNAME:finpay}
+    password: ${SPRING_DATASOURCE_PASSWORD:finpay}
+    hikari:
+      maximum-pool-size: 16
+      # We rely on explicit pessimistic locks; keep the default READ_COMMITTED isolation.
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema. 'none' avoids Hibernate's cosmetic type-name validation
+      # (text vs varchar) fighting the migrations.
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+        format_sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: 2000ms
+      connect-timeout: 2000ms
+      lettuce:
+        shutdown-timeout: 200ms
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+  ai:
+    ollama:
+      base-url: ${SPRING_AI_OLLAMA_BASE_URL:http://localhost:11434}
+      chat:
+        options:
+          model: ${SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL:llama3.1:8b}
+          temperature: 0.2
+      init:
+        pull-model-strategy: never
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+finpay:
+  jwt:
+    secret: ${FINPAY_JWT_SECRET:local-dev-only-change-me-0000000000000000000000000000}
+    ttl-minutes: ${FINPAY_JWT_TTL_MINUTES:120}
+    issuer: finpay-gateway
+  apikey:
+    pepper: ${FINPAY_APIKEY_PEPPER:local-dev-only-pepper-change-me}
+  ratelimit:
+    # Redis token bucket per caller (API key id / user id).
+    capacity: ${FINPAY_RL_CAPACITY:120}
+    refill-per-second: ${FINPAY_RL_REFILL:40}
+  idempotency:
+    ttl-hours: 24
+  simulator:
+    mode: ${FINPAY_SIMULATOR_MODE:DETERMINISTIC}
+    card-success-rate: 0.92
+    upi-success-rate: 0.88
+  risk:
+    ml-base-url: ${FINPAY_ML_BASE_URL:http://localhost:9000}
+    ml-timeout-ms: 200
+    rule-weight: 0.55
+    ml-weight: 0.4
+    vector-weight: 0.05
+    # final_score buckets (0-100)
+    low-max: 22
+    medium-max: 50
+    high-max: 78
+    # low-risk auto-capture threshold (Doubt 4): only auto-capture at/below this score.
+    # Kept deliberately tight — most LOW payments are still HELD and routed through the
+    # review queue, where the Auto-Clear Engine (not a blanket rule) decides.
+    auto-capture-max: 6
+  outbox:
+    poll-interval-ms: 2000
+    batch-size: 50
+    max-attempts: 8
+  settlement:
+    # demo: sweep merchant payables every 5 min. A real gateway runs this nightly.
+    interval-ms: 300000
+  groundtruth:
+    # simulated chargeback/dispute window before actually_fraudulent resolves
+    resolve-after-seconds: 60
+    poll-ms: 5000
+  autoclear:
+    # Starting P(reference analyst clears) required before a held payment is auto-captured.
+    # AutoClearCalibrator ratchets this UP (never down) whenever a false auto-clear is
+    # confirmed against the hidden ground truth. The reference-analyst rule check is a
+    # separate hard gate that every auto-clear must also pass.
+    threshold: 0.80
+    poll-ms: 4000
+    calibrate-ms: 15000
+
+logging:
+  level:
+    com.finpay: INFO
+    org.springframework.web.filter.CommonsRequestLoggingFilter: INFO
