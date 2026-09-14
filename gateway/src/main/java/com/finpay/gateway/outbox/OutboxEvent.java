@@ -30,6 +30,10 @@ public class OutboxEvent {
     @Column(name = "aggregate_id", nullable = false)
     private UUID aggregateId;
 
+    /** Which merchant's webhooks receive this event (V12). Routing lives here, not in the payload. */
+    @Column(name = "merchant_id")
+    private UUID merchantId;
+
     @Column(name = "event_type", nullable = false)
     private String eventType;
 

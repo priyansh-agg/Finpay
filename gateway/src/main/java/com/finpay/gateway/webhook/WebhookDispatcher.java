@@ -1,7 +1,5 @@
 package com.finpay.gateway.webhook;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finpay.gateway.outbox.OutboxEvent;
 import com.finpay.gateway.outbox.OutboxEventRepository;
 import org.slf4j.Logger;
@@ -36,19 +34,17 @@ public class WebhookDispatcher {
     private final WebhookEndpointRepository endpoints;
     private final WebhookDeliveryRepository deliveries;
     private final WebhookSender sender;
-    private final ObjectMapper json;
     private final int batchSize;
     private final int maxAttempts;
 
     public WebhookDispatcher(OutboxEventRepository outbox, WebhookEndpointRepository endpoints,
-                             WebhookDeliveryRepository deliveries, WebhookSender sender, ObjectMapper json,
+                             WebhookDeliveryRepository deliveries, WebhookSender sender,
                              @Value("${finpay.outbox.batch-size:50}") int batchSize,
                              @Value("${finpay.outbox.max-attempts:8}") int maxAttempts) {
         this.outbox = outbox;
         this.endpoints = endpoints;
         this.deliveries = deliveries;
         this.sender = sender;
-        this.json = json;
         this.batchSize = batchSize;
         this.maxAttempts = maxAttempts;
     }
@@ -59,17 +55,24 @@ public class WebhookDispatcher {
         List<OutboxEvent> due = outbox.claimDue(Instant.now(), PageRequest.of(0, batchSize));
         for (OutboxEvent ev : due) {
             try {
-                UUID merchantId = merchantIdOf(ev);
-                if (merchantId != null) {
-                    for (WebhookEndpoint ep : endpoints.findByMerchantIdAndActiveTrue(merchantId)) {
-                        if (!ep.subscribesTo(ev.getEventType())) continue;
-                        if (deliveries.existsByEndpointIdAndOutboxEventId(ep.getId(), ev.getId())) continue;
-                        WebhookDelivery d = new WebhookDelivery();
-                        d.setEndpointId(ep.getId());
-                        d.setOutboxEventId(ev.getId());
-                        d.setEventType(ev.getEventType());
-                        deliveries.save(d);
-                    }
+                UUID merchantId = ev.getMerchantId();
+                if (merchantId == null) {
+                    // Only pre-V12 rows can get here. Dead-letter them loudly: marking an event
+                    // PUBLISHED when it reached nobody is how refund webhooks vanished.
+                    ev.setStatus(OutboxEvent.Status.DEAD);
+                    ev.setLastError("no merchant to route to; event was never delivered");
+                    log.error("outbox event {} ({}) has no merchant — dead-lettered, not published",
+                            ev.getId(), ev.getEventType());
+                    continue;
+                }
+                for (WebhookEndpoint ep : endpoints.findByMerchantIdAndActiveTrue(merchantId)) {
+                    if (!ep.subscribesTo(ev.getEventType())) continue;
+                    if (deliveries.existsByEndpointIdAndOutboxEventId(ep.getId(), ev.getId())) continue;
+                    WebhookDelivery d = new WebhookDelivery();
+                    d.setEndpointId(ep.getId());
+                    d.setOutboxEventId(ev.getId());
+                    d.setEventType(ev.getEventType());
+                    deliveries.save(d);
                 }
                 ev.setStatus(OutboxEvent.Status.PUBLISHED);
                 ev.setPublishedAt(Instant.now());
@@ -91,16 +94,6 @@ public class WebhookDispatcher {
             } catch (Exception e) {
                 log.warn("delivery attempt {} threw: {}", d.getId(), e.toString());
             }
-        }
-    }
-
-    private UUID merchantIdOf(OutboxEvent ev) {
-        try {
-            JsonNode node = json.readTree(ev.getPayload());
-            JsonNode m = node.get("merchantId");
-            return m == null ? null : UUID.fromString(m.asText());
-        } catch (Exception e) {
-            return null;
         }
     }
 }

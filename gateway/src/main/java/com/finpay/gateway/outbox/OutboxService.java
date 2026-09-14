@@ -21,12 +21,21 @@ public class OutboxService {
     /**
      * Enqueue a domain event. MUST be called inside the transaction that performs the
      * state change, so the event and the change commit atomically (or not at all).
+     *
+     * @param merchantId whose webhooks receive the event. Required, and deliberately a
+     *                   parameter rather than something the dispatcher digs out of the payload:
+     *                   the refund payload once omitted it, and every refund webhook was
+     *                   silently dropped.
      */
     @Transactional(propagation = Propagation.MANDATORY)
-    public UUID publish(String aggregateType, UUID aggregateId, String eventType, Object payload) {
+    public UUID publish(String aggregateType, UUID aggregateId, UUID merchantId, String eventType, Object payload) {
+        if (merchantId == null) {
+            throw new IllegalArgumentException("outbox event " + eventType + " has no merchant to route to");
+        }
         OutboxEvent e = new OutboxEvent();
         e.setAggregateType(aggregateType);
         e.setAggregateId(aggregateId);
+        e.setMerchantId(merchantId);
         e.setEventType(eventType);
         e.setPayload(toJson(payload));
         return repo.save(e).getId();

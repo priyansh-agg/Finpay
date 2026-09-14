@@ -74,7 +74,7 @@ public class SettlementService {
             settlements.save(s);
             s.setLedgerTxId(ledger.postSettlement(s.getId(), payable.getOwnerId(), bal, payable.getCurrency()));
 
-            outbox.publish("SETTLEMENT", s.getId(), "settlement.paid", Map.of(
+            outbox.publish("SETTLEMENT", s.getId(), payable.getOwnerId(), "settlement.paid", Map.of(
                     "settlementId", s.getId().toString(),
                     "merchantId", payable.getOwnerId().toString(),
                     "amountMinor", bal,
