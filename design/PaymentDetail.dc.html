@@ -1,0 +1,357 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..48,600;12..48,700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    :root{
+      --paper:#f7f6f3; --surface:#ffffff; --sunken:#f2efe9;
+      --ink:#1b1a20; --ink-soft:#494651; --muted:#7b7883; --faint:#a8a4ad;
+      --line:#e9e5dd; --line-soft:#f1ede5; --line-strong:#dcd7cd;
+      --brand:#3a58e8; --brand-hover:#2c45c8; --brand-tint:#ebeefe; --brand-deep:#20369f;
+      --ok:#158257; --ok-tint:#e2f1e9;
+      --warn:#9c6f18; --warn-tint:#f6edd7;
+      --bad:#cd403c; --bad-tint:#f8e5e2;
+      --risk-low:#158257; --risk-med:#9c6f18; --risk-high:#cb5f27;
+      --shadow-sm:0 1px 2px rgba(24,22,40,.05);
+      --shadow:0 1px 2px rgba(24,22,40,.04), 0 10px 26px rgba(24,22,40,.055);
+      --radius:12px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--paper);color:var(--ink);
+      font:400 14px/1.5 "Hanken Grotesk",-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+    a{color:var(--brand);text-decoration:none}
+    a:hover{color:var(--brand-hover)}
+    h1,h2,h3{margin:0;font-family:"Bricolage Grotesque","Hanken Grotesk",system-ui,sans-serif;font-weight:600;color:var(--ink);letter-spacing:-.012em}
+    .num{font-family:"Bricolage Grotesque","Hanken Grotesk",system-ui,sans-serif;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+    .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+    svg.ic{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+    .app{width:1440px;min-height:900px;display:flex;background:var(--paper)}
+    .side{width:244px;flex:none;background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:18px 14px 16px;gap:2px}
+    .brand{display:flex;align-items:center;gap:11px;padding:6px 8px 18px}
+    .brand .logo{width:32px;height:32px;border-radius:9px;background:var(--brand);display:flex;align-items:center;justify-content:center}
+    .brand .logo svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2.3;stroke-linecap:round}
+    .brand b{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:700;font-size:17px;letter-spacing:-.025em}
+    .navgroup{display:flex;flex-direction:column;gap:2px;padding:8px 0}
+    .navgroup + .navgroup{border-top:1px solid var(--line-soft)}
+    .navlbl{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:6px 10px 5px}
+    .nav{display:flex;align-items:center;gap:12px;height:44px;padding:0 11px;border-radius:9px;color:var(--ink-soft);font-weight:500;cursor:pointer}
+    .nav:hover{background:var(--sunken)}
+    .nav svg.ic{width:19px;height:19px}
+    .nav.active{background:var(--brand-tint);color:var(--brand-deep);font-weight:600}
+    .nav.active svg.ic{color:var(--brand)}
+    .env{margin-top:auto;display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:12px;color:var(--muted)}
+    .env .pulse{width:7px;height:7px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 3px var(--warn-tint)}
+    .env b{color:var(--ink);font-weight:600}
+
+    .main{flex:1;min-width:0;display:flex;flex-direction:column}
+    .topbar{height:64px;flex:none;border-bottom:1px solid var(--line);background:var(--surface);display:flex;align-items:center;gap:14px;padding:0 26px}
+    .searchbox{flex:1;max-width:400px;display:flex;align-items:center;gap:9px;height:40px;padding:0 13px;background:var(--sunken);border-radius:9px;color:var(--muted);font-size:13px}
+    .searchbox svg.ic{width:17px;height:17px}
+    .spacer{flex:1}
+    .seg{display:flex;background:var(--sunken);border-radius:9px;padding:3px}
+    .seg span{padding:7px 13px;border-radius:7px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer}
+    .seg span.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm)}
+    .iconbtn{width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:9px;color:var(--ink-soft);cursor:pointer}
+    .avatar{width:34px;height:34px;border-radius:50%;background:var(--brand-deep);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px}
+
+    .content{padding:22px 28px 46px;display:flex;flex-direction:column;gap:18px;max-width:1180px}
+    .crumb{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)}
+    .crumb svg.ic{width:14px;height:14px;color:var(--faint)}
+    .crumb .mono{color:var(--ink-soft)}
+
+    .dhead{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 22px;display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
+    .dhead .amt{font-size:32px;line-height:1.05}
+    .dhead .chips{display:flex;gap:8px;margin:10px 0 12px}
+    .dhead .idline{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-soft)}
+    .dhead .idline svg.ic{width:14px;height:14px;color:var(--faint)}
+    .dhead .meta{margin-top:6px;font-size:12.5px;color:var(--muted)}
+    .dhead .acts{display:flex;gap:9px;flex:none}
+
+    .btn{height:38px;padding:0 15px;border-radius:9px;font:600 12.5px "Hanken Grotesk",sans-serif;display:inline-flex;align-items:center;gap:7px;cursor:pointer;border:1px solid transparent}
+    .btn.primary{background:var(--brand);color:#fff}
+    .btn.primary:hover{background:var(--brand-hover)}
+    .btn.ghost{background:var(--surface);border-color:var(--line);color:var(--ink-soft)}
+    .btn.ghost:hover{background:var(--sunken);border-color:var(--line-strong)}
+    .btn.ghost.off{color:var(--faint);cursor:not-allowed}
+    .btn svg.ic{width:15px;height:15px}
+
+    .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);padding:0 2px}
+    .tab{padding:12px 14px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+    .tab:hover{color:var(--ink-soft)}
+    .tab.on{color:var(--brand-deep);border-bottom-color:var(--brand)}
+
+    .grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:18px;align-items:start}
+    .col{display:flex;flex-direction:column;gap:16px}
+
+    .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .card-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 17px;border-bottom:1px solid var(--line-soft)}
+    .card-h h3{font-size:13.5px}
+    .card-h .tagmini{font-size:11px;font-weight:600;color:var(--muted);background:var(--sunken);padding:3px 8px;border-radius:6px}
+    .card-b{padding:17px}
+
+    .chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:7px;font-size:11.5px;font-weight:600;white-space:nowrap}
+    .chip.dot::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+    .s-held{background:var(--warn-tint);color:var(--warn)}
+    .r-med{background:var(--warn-tint);color:var(--risk-med)}
+
+    .scorehead{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+    .scorehead .big{font-size:30px}
+    .scorehead .big span{font-size:15px;color:var(--muted)}
+    .scorebar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--sunken)}
+    .scorebar i{display:block;height:100%}
+    .scorebar .rule{background:#3a58e8;width:53.8%}
+    .scorebar .ml{background:#7b93f2;width:36.5%}
+    .scorebar .vec{background:#c3cef9;width:9.7%}
+    .scorelegend{display:flex;gap:16px;margin-top:11px;font-size:12px;color:var(--muted)}
+    .scorelegend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:7px;vertical-align:middle}
+    .decision{margin-top:14px;padding:10px 12px;background:var(--sunken);border-radius:8px;font-size:12.5px;color:var(--ink-soft)}
+    .decision b{color:var(--brand-deep)}
+
+    .rule{display:flex;align-items:flex-start;gap:12px;padding:13px 0;border-bottom:1px solid var(--line-soft)}
+    .rule:last-child{border-bottom:0;padding-bottom:0}
+    .rule:first-child{padding-top:0}
+    .rule .code{font-size:11px;font-weight:600;background:var(--bad-tint);color:var(--bad);padding:3px 7px;border-radius:6px;flex:none;font-family:"IBM Plex Mono",monospace}
+    .rule .txt{flex:1;font-size:12.5px;color:var(--ink-soft)}
+    .rule .txt b{color:var(--ink);display:block;font-size:12.5px;font-weight:600;margin-bottom:1px}
+    .rule .w{font-weight:700;color:var(--bad);font-variant-numeric:tabular-nums;flex:none}
+
+    .simrow{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line-soft);font-size:12.5px}
+    .simrow:last-child{border-bottom:0;padding-bottom:0}
+    .simrow .mono{color:var(--ink-soft)}
+    .simrow .pct{margin-left:auto;font-weight:700;color:var(--risk-high);font-variant-numeric:tabular-nums}
+    .simrow .kind{color:var(--muted)}
+    .simlead{font-size:13px;color:var(--ink-soft);margin-bottom:12px}
+    .simlead b{color:var(--ink)}
+
+    .explain{font-size:13.5px;line-height:1.6;color:var(--ink-soft);border-left:2px solid var(--line-strong);padding-left:14px}
+    .explain-foot{display:flex;align-items:center;justify-content:space-between;margin-top:13px;font-size:12px;color:var(--muted)}
+    .explain-foot .model{background:var(--sunken);padding:3px 8px;border-radius:6px;font-weight:600}
+
+    /* right rail */
+    .ac-card{border-color:var(--brand-tint);box-shadow:0 1px 2px rgba(58,88,232,.06), 0 10px 26px rgba(58,88,232,.09)}
+    .ac-top{display:flex;align-items:center;gap:10px;padding:15px 17px;border-bottom:1px solid var(--line-soft)}
+    .ac-top .badge{width:30px;height:30px;border-radius:8px;background:var(--brand-tint);color:var(--brand);display:flex;align-items:center;justify-content:center;flex:none}
+    .ac-top .badge svg.ic{width:17px;height:17px}
+    .ac-top h3{font-size:13.5px}
+    .ac-top .st{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--warn);background:var(--warn-tint);padding:3px 8px;border-radius:6px}
+    .ac-body{padding:15px 17px;display:flex;flex-direction:column;gap:10px}
+    .ac-line{display:flex;align-items:center;justify-content:space-between;font-size:12.5px}
+    .ac-line span{color:var(--muted)}
+    .ac-line b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+    .ac-line b.yes{color:var(--ok)}
+    .ac-meter{height:7px;border-radius:4px;background:var(--sunken);position:relative;margin:2px 0 2px}
+    .ac-meter .fill{position:absolute;left:0;top:0;bottom:0;width:71%;background:var(--brand);border-radius:4px}
+    .ac-meter .thr{position:absolute;top:-3px;bottom:-3px;left:80%;width:2px;background:var(--ink)}
+    .ac-note{font-size:11.5px;color:var(--muted);background:var(--sunken);padding:9px 11px;border-radius:8px;line-height:1.5}
+
+    .kv{display:flex;flex-direction:column}
+    .kv .row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--line-soft);font-size:12.5px}
+    .kv .row:last-child{border-bottom:0;padding-bottom:0}
+    .kv .row:first-child{padding-top:0}
+    .kv .row span{color:var(--muted)}
+    .kv .row b{color:var(--ink);font-weight:600}
+    .kv .row a{font-weight:600}
+    .kv .row .mono{font-size:11.5px}
+
+    .tl{display:flex;flex-direction:column}
+    .tl .ev{display:flex;gap:12px;padding-bottom:16px;position:relative}
+    .tl .ev:last-child{padding-bottom:0}
+    .tl .ev::before{content:"";position:absolute;left:5px;top:14px;bottom:-2px;width:1.5px;background:var(--line)}
+    .tl .ev:last-child::before{display:none}
+    .tl .ev .dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--brand);background:var(--surface);flex:none;margin-top:2px;z-index:1}
+    .tl .ev.done .dot{background:var(--brand)}
+    .tl .ev.wait .dot{border-color:var(--line-strong)}
+    .tl .ev .body b{display:block;font-size:12.5px;color:var(--ink);font-weight:600}
+    .tl .ev .body span{font-size:11.5px;color:var(--muted)}
+  </style>
+</helmet>
+
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <span class="logo"><svg viewBox="0 0 24 24"><path d="M5 6.5h13M5 12h14M5 17.5h9" fill="none"/></svg></span>
+      <b>FinPay</b>
+    </div>
+    <div class="navgroup">
+      <div class="nav"><svg class="ic" viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5"/><path d="M6 10v9h12v-9"/></svg>Home</div>
+      <div class="nav active"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M3 10h18"/></svg>Payments</div>
+      <div class="nav"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h12v17l-3-1.8-3 1.8-3-1.8-3 1.8z"/><path d="M9 8.5h6M9 12.5h6"/></svg>Orders</div>
+      <div class="nav"><svg class="ic" viewBox="0 0 24 24"><path d="M9 5 4 10l5 5"/><path d="M4 10h11a5 5 0 0 1 0 10h-2.5"/></svg>Refunds</div>
+      <div class="nav"><svg class="ic" viewBox="0 0 24 24"><path d="M3 9 12 4l9 5"/><path d="M5.5 10.5v7M18.5 10.5v7M12 10.5v7"/><path d="M3.5 20h17"/></svg>Settlements</div>
+    </div>
+    <div class="navgroup">
+      <div class="navlbl">Grow</div>
+      <div class="nav"><svg class="ic" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><path d="M16 5.5a3 3 0 0 1 0 6M20.5 19a5.5 5.5 0 0 0-4-5.3"/></svg>Customers</div>
+      <div class="nav"><svg class="ic" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 6 0l2-2a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6 0l-2 2a4 4 0 0 0 6 6l1-1"/></svg>Payment links</div>
+    </div>
+    <div class="navgroup">
+      <div class="navlbl">Build</div>
+      <div class="nav"><svg class="ic" viewBox="0 0 24 24"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 6l-3 12"/></svg>Developers</div>
+      <div class="nav"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 4v2.5M12 17.5V20M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M4 12h2.5M17.5 12H20M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg>Settings</div>
+    </div>
+    <div class="env"><span class="pulse"></span><span>You&rsquo;re in <b>Test mode</b></span></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="searchbox"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>Search payments, orders, customers&hellip;</div>
+      <div class="spacer"></div>
+      <div class="seg"><span class="on">Test</span><span>Live</span></div>
+      <div class="iconbtn"><svg class="ic" viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></div>
+      <div class="avatar">SR</div>
+    </div>
+
+    <div class="content">
+      <div class="crumb">
+        <span>Payments</span>
+        <svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+        <span class="mono">pay_Q8x2mK4pLnRa</span>
+      </div>
+
+      <div class="dhead">
+        <div>
+          <div class="amt num">&#8377;4,520.00</div>
+          <div class="chips">
+            <span class="chip s-held dot">Held</span>
+            <span class="chip r-med">MEDIUM risk &middot; 52 / 100</span>
+          </div>
+          <div class="idline mono">pay_Q8x2mK4pLnRa
+            <svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15V6a2.5 2.5 0 0 1 2.5-2.5H16"/></svg>
+          </div>
+          <div class="meta">Card &bull;&bull;&bull;&bull; 4242 &middot; Order <span style="color:var(--brand)">order_5PkY2</span> &middot; Created 10 Sep 2026, 2:14 PM IST</div>
+        </div>
+        <div class="acts">
+          <button class="btn ghost">Void authorisation</button>
+          <button class="btn ghost off">Refund</button>
+          <button class="btn primary"><svg class="ic" viewBox="0 0 24 24"><path d="m5 13 4 4 10-10"/></svg>Capture &#8377;4,520</button>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <span class="tab">Overview</span>
+        <span class="tab on">Risk</span>
+        <span class="tab">Auto-Clear</span>
+        <span class="tab">Ledger</span>
+        <span class="tab">Webhooks</span>
+        <span class="tab">Refunds</span>
+        <span class="tab">Timeline</span>
+      </div>
+
+      <div class="grid">
+        <div class="col">
+          <div class="card">
+            <div class="card-h"><h3>Risk score</h3><span class="tagmini">evaluated in 3&nbsp;ms &middot; before the processor</span></div>
+            <div class="card-b">
+              <div class="scorehead">
+                <span class="big num">52<span> / 100</span></span>
+                <span class="chip r-med" style="height:22px">MEDIUM bucket</span>
+              </div>
+              <div class="scorebar">
+                <i class="rule"></i><i class="ml"></i><i class="vec"></i>
+              </div>
+              <div class="scorelegend">
+                <span><i style="background:#3a58e8"></i>Rules &nbsp;28</span>
+                <span><i style="background:#7b93f2"></i>Model &nbsp;19</span>
+                <span><i style="background:#c3cef9"></i>Similar-case &nbsp;5</span>
+              </div>
+              <div class="decision">Decision: <b>REVIEW</b> &mdash; funds are authorised but <b>held</b>, not settled, until this is cleared. A wrong clear costs nothing here.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><h3>Rules triggered</h3><span class="tagmini">2 of 8</span></div>
+            <div class="card-b">
+              <div class="rule">
+                <span class="code">AMOUNT_DEVIATION</span>
+                <span class="txt"><b>Amount is 3.4&times; this customer&rsquo;s rolling average</b>&#8377;4,520 vs a typical &#8377;1,330 over the last 12 payments</span>
+                <span class="w">+25</span>
+              </div>
+              <div class="rule">
+                <span class="code">NEW_DEVICE_NEW_IP</span>
+                <span class="txt"><b>Unrecognised device and IP on a non-trivial amount</b>First seen device <span class="mono">dev_a19f&hellip;</span>, IP geolocates to a new city</span>
+                <span class="w">+20</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><h3>Similar confirmed-fraud cases</h3><span class="tagmini">pgvector &middot; cosine</span></div>
+            <div class="card-b">
+              <p class="simlead">This payment&rsquo;s feature vector is <b>88% similar</b> to 3 confirmed fraud cases, all tagged <b>velocity abuse</b>.</p>
+              <div class="simrow"><span class="mono">pay_Zk3&hellip;91</span><span class="kind">velocity abuse</span><span class="pct">0.91</span></div>
+              <div class="simrow"><span class="mono">pay_Ht8&hellip;04</span><span class="kind">velocity abuse</span><span class="pct">0.88</span></div>
+              <div class="simrow"><span class="mono">pay_Rm2&hellip;77</span><span class="kind">velocity abuse</span><span class="pct">0.85</span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><h3>Explanation</h3><span class="tagmini">for the analyst view</span></div>
+            <div class="card-b">
+              <p class="explain">Flagged at 52/100 (MEDIUM). The amount is well above this customer&rsquo;s norm and the payment comes from an unrecognised device and IP &mdash; a pattern that matches three prior confirmed &ldquo;velocity abuse&rdquo; cases. The customer has no prior fraud history and a two-year account age, which is why it was held for review rather than blocked.</p>
+              <div class="explain-foot">
+                <span>Generated from the rule flags + retrieved cases</span>
+                <span class="model">llama3.1 &middot; cached</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="card ac-card">
+            <div class="ac-top">
+              <span class="badge"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 4 3 7 7 9 4-2 7-5 7-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span>
+              <h3>Auto-Clear</h3>
+              <span class="st">Not auto-cleared</span>
+            </div>
+            <div class="ac-body">
+              <div class="ac-line"><span>Eligible bucket</span><b class="yes">Yes &middot; MEDIUM</b></div>
+              <div class="ac-line"><span>Prior confirmed fraud</span><b class="yes">None</b></div>
+              <div class="ac-line"><span>Reference analyst</span><b class="yes">Would clear</b></div>
+              <div class="ac-line"><span>Model confidence</span><b>0.71</b></div>
+              <div class="ac-meter"><span class="fill"></span><span class="thr"></span></div>
+              <div class="ac-line"><span>Confidence 0.71</span><span>threshold 0.80</span></div>
+              <div class="ac-note">Three of four gates pass, but model confidence is below the calibrated threshold &mdash; so this goes to a human, not the auto-clear path. Funds stay held; nothing is settled until it&rsquo;s resolved.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><h3>Details</h3></div>
+            <div class="card-b">
+              <div class="kv">
+                <div class="row"><span>Order</span><a href="#" class="mono">order_5PkY2wQ8</a></div>
+                <div class="row"><span>Customer</span><a href="#">Ananya Rao</a></div>
+                <div class="row"><span>Email</span><b>ananya.rao@gmail.com</b></div>
+                <div class="row"><span>Method</span><b>Card &bull;&bull;&bull;&bull; 4242</b></div>
+                <div class="row"><span>Processor ref</span><b class="mono">sim_88065f61</b></div>
+                <div class="row"><span>Settlement</span><b style="color:var(--warn)">On hold</b></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><h3>Timeline</h3></div>
+            <div class="card-b">
+              <div class="tl">
+                <div class="ev done"><span class="dot"></span><span class="body"><b>Payment created</b><span>2:14:07 PM &middot; via checkout link</span></span></div>
+                <div class="ev done"><span class="dot"></span><span class="body"><b>Risk evaluated &mdash; 52, REVIEW</b><span>2:14:07 PM &middot; 2 rules fired</span></span></div>
+                <div class="ev done"><span class="dot"></span><span class="body"><b>Authorised by processor</b><span>2:14:08 PM &middot; &#8377;4,520 reserved</span></span></div>
+                <div class="ev done"><span class="dot"></span><span class="body"><b>Held for review</b><span>2:14:08 PM &middot; queued to analyst</span></span></div>
+                <div class="ev wait"><span class="dot"></span><span class="body"><b>Awaiting decision</b><span>2h 41m in queue</span></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

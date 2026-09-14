@@ -1,0 +1,131 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..48,600;12..48,700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    :root{
+      --paper:#f6f3ef; --surface:#ffffff; --sunken:#f3f0ea;
+      --ink:#1b1a20; --ink-soft:#494651; --muted:#7b7883; --faint:#a8a4ad;
+      --line:#e8e3da; --line-soft:#f0ebe2; --line-strong:#dbd5ca;
+      --brand:#3a58e8; --brand-hover:#2c45c8; --brand-deep:#20369f;
+      --coral:#ef6038;
+      --ok:#158257;
+      --shadow-card:0 1px 3px rgba(24,22,40,.05), 0 20px 50px rgba(24,22,40,.12);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--paper);color:var(--ink);
+      font:400 14px/1.5 "Hanken Grotesk",-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+    .num{font-family:"Bricolage Grotesque","Hanken Grotesk",system-ui,sans-serif;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+    .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+    a{color:var(--brand);text-decoration:none}
+    a:hover{color:var(--brand-hover)}
+    svg.ic{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+    .page{width:1200px;min-height:860px;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;background:var(--paper)}
+    .blob{position:absolute;border-radius:50%;pointer-events:none}
+    .blob.a{width:520px;height:520px;background:#e9edfd;opacity:.55;top:-180px;left:-140px}
+    .blob.b{width:420px;height:420px;background:#fbe7de;opacity:.5;bottom:-160px;right:-120px}
+
+    .card{position:relative;width:462px;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow-card);padding:28px 30px 24px;display:flex;flex-direction:column;gap:18px}
+
+    .merchant{display:flex;align-items:center;gap:12px}
+    .merchant .mk{width:38px;height:38px;border-radius:11px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"Bricolage Grotesque",sans-serif;font-weight:700;font-size:16px;flex:none}
+    .merchant .mn{font-weight:700;font-size:15px;color:var(--ink)}
+    .merchant .mn span{display:block;font-weight:500;font-size:11.5px;color:var(--muted)}
+    .merchant .test{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--coral);background:#fbe7de;padding:4px 8px;border-radius:6px}
+
+    .amount{border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);padding:16px 0;display:flex;align-items:flex-end;justify-content:space-between}
+    .amount .big{font-size:34px;line-height:1;color:var(--ink)}
+    .amount .ord{font-size:12px;color:var(--muted);text-align:right}
+    .amount .ord b{display:block;color:var(--ink-soft);font-weight:600;font-size:12.5px}
+
+    .mtabs{display:flex;gap:6px}
+    .mtab{flex:1;height:44px;border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;background:var(--surface)}
+    .mtab svg.ic{width:16px;height:16px}
+    .mtab.on{border-color:var(--brand);color:var(--brand-deep);background:#f2f4fe}
+
+    .field{display:flex;flex-direction:column;gap:6px}
+    .field label{font-size:11.5px;font-weight:600;color:var(--ink-soft)}
+    .inp{height:46px;border:1px solid var(--line-strong);border-radius:10px;padding:0 13px;display:flex;align-items:center;justify-content:space-between;font-size:14px;color:var(--ink);background:var(--surface)}
+    .inp.focus{border-color:var(--brand);box-shadow:0 0 0 3px #e9edfd}
+    .inp .ph{color:var(--faint)}
+    .inp .val{letter-spacing:.04em}
+    .brandmarks{display:flex;gap:5px;align-items:center}
+    .brandmarks i{width:26px;height:17px;border-radius:3px;background:var(--sunken);display:block}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+    .pay{height:52px;border:none;border-radius:11px;background:var(--brand);color:#fff;font:700 15px "Hanken Grotesk",sans-serif;display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer}
+    .pay:hover{background:var(--brand-hover)}
+    .pay svg.ic{width:17px;height:17px;stroke-width:2.2}
+
+    .foot{display:flex;flex-direction:column;align-items:center;gap:5px;padding-top:4px}
+    .foot .sec{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+    .foot .sec svg.ic{width:13px;height:13px}
+    .foot .sec b{color:var(--ink-soft);font-weight:600}
+    .foot .sb{font-size:11px;color:var(--faint)}
+  </style>
+</helmet>
+
+<div class="page">
+  <span class="blob a"></span>
+  <span class="blob b"></span>
+
+  <div class="card">
+    <div class="merchant">
+      <span class="mk">S</span>
+      <span class="mn">Suprabhat Coffee Roasters<span>order for coffee &amp; equipment</span></span>
+      <span class="test">TEST MODE</span>
+    </div>
+
+    <div class="amount">
+      <span class="big num">&#8377;4,520.00</span>
+      <span class="ord">Paying for<b>Order #INV-20418</b></span>
+    </div>
+
+    <div class="mtabs">
+      <span class="mtab on"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M3 10h18"/></svg>Card</span>
+      <span class="mtab"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3 4 8v8l8 5 8-5V8z"/></svg>UPI</span>
+      <span class="mtab"><svg class="ic" viewBox="0 0 24 24"><path d="M3 9 12 4l9 5"/><path d="M5.5 10.5v7M18.5 10.5v7M12 10.5v7M3.5 20h17"/></svg>Netbanking</span>
+    </div>
+
+    <div class="field">
+      <label>Card number</label>
+      <div class="inp focus">
+        <span class="val mono">4242 4242 4242 4242</span>
+        <span class="brandmarks"><i></i><i></i></span>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label>Expiry</label>
+        <div class="inp"><span class="val mono">08 / 28</span></div>
+      </div>
+      <div class="field">
+        <label>CVV</label>
+        <div class="inp"><span class="val mono">&bull;&bull;&bull;</span><svg class="ic" viewBox="0 0 24 24" style="color:var(--faint)"><rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Name on card</label>
+      <div class="inp"><span class="ph">Full name as printed on the card</span></div>
+    </div>
+
+    <button class="pay"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Pay &#8377;4,520.00</button>
+
+    <div class="foot">
+      <div class="sec"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Secured by <b>FinPay</b></div>
+      <div class="sb">Sandbox &mdash; test card only, no real money moves</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

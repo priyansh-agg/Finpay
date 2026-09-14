@@ -1,0 +1,378 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..48,600;12..48,700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    :root{
+      --paper:#f7f6f3; --surface:#ffffff; --sunken:#f2efe9;
+      --ink:#1b1a20; --ink-soft:#494651; --muted:#7b7883; --faint:#a8a4ad;
+      --line:#e9e5dd; --line-soft:#f1ede5; --line-strong:#dcd7cd;
+      --brand:#3a58e8; --brand-hover:#2c45c8; --brand-tint:#ebeefe; --brand-deep:#20369f;
+      --ok:#158257; --ok-tint:#e2f1e9;
+      --warn:#9c6f18; --warn-tint:#f6edd7;
+      --bad:#cd403c; --bad-tint:#f8e5e2;
+      --risk-low:#158257; --risk-med:#9c6f18; --risk-high:#cb5f27; --risk-crit:#ac2f2c;
+      --shadow-sm:0 1px 2px rgba(24,22,40,.05);
+      --shadow:0 1px 2px rgba(24,22,40,.04), 0 10px 26px rgba(24,22,40,.055);
+      --radius:12px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--paper);color:var(--ink);
+      font:400 14px/1.5 "Hanken Grotesk",-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+    a{color:var(--brand);text-decoration:none}
+    a:hover{color:var(--brand-hover)}
+    h1,h2,h3{margin:0;font-family:"Bricolage Grotesque","Hanken Grotesk",system-ui,sans-serif;font-weight:600;color:var(--ink);letter-spacing:-.012em}
+    .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+    svg.ic{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+    .app{width:1440px;min-height:900px;display:flex;background:var(--paper)}
+    .side{width:244px;flex:none;background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:18px 14px 16px;gap:2px}
+    .brand{display:flex;align-items:center;gap:11px;padding:6px 8px 18px}
+    .brand .logo{width:32px;height:32px;border-radius:9px;background:var(--brand);display:flex;align-items:center;justify-content:center}
+    .brand .logo svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2.3;stroke-linecap:round}
+    .brand b{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:700;font-size:17px;letter-spacing:-.025em}
+    .navgroup{display:flex;flex-direction:column;gap:2px;padding:8px 0}
+    .navgroup + .navgroup{border-top:1px solid var(--line-soft)}
+    .navlbl{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:6px 10px 5px}
+    .nav{display:flex;align-items:center;gap:12px;height:44px;padding:0 11px;border-radius:9px;color:var(--ink-soft);font-weight:500;cursor:pointer}
+    .nav:hover{background:var(--sunken)}
+    .nav svg.ic{width:19px;height:19px}
+    .nav.active{background:var(--brand-tint);color:var(--brand-deep);font-weight:600}
+    .nav.active svg.ic{color:var(--brand)}
+    .env{margin-top:auto;display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:12px;color:var(--muted)}
+    .env .pulse{width:7px;height:7px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 3px var(--warn-tint)}
+    .env b{color:var(--ink);font-weight:600}
+
+    .main{flex:1;min-width:0;display:flex;flex-direction:column}
+    .topbar{height:64px;flex:none;border-bottom:1px solid var(--line);background:var(--surface);display:flex;align-items:center;gap:14px;padding:0 26px}
+    .searchbox{flex:1;max-width:400px;display:flex;align-items:center;gap:9px;height:40px;padding:0 13px;background:var(--sunken);border-radius:9px;color:var(--muted);font-size:13px}
+    .searchbox svg.ic{width:17px;height:17px}
+    .spacer{flex:1}
+    .seg{display:flex;background:var(--sunken);border-radius:9px;padding:3px}
+    .seg span{padding:7px 13px;border-radius:7px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer}
+    .seg span.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm)}
+    .iconbtn{width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:9px;color:var(--ink-soft);cursor:pointer}
+    .iconbtn:hover{background:var(--sunken)}
+    .avatar{width:34px;height:34px;border-radius:50%;background:var(--brand-deep);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px}
+
+    .content{padding:26px 28px 46px;display:flex;flex-direction:column;gap:18px;max-width:1240px}
+    .pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+    .pagehead h1{font-size:24px}
+    .pagehead .sub{margin:5px 0 0;color:var(--muted);font-size:13px}
+    .pagehead .actions{display:flex;gap:10px}
+
+    .btn{height:40px;padding:0 15px;border-radius:9px;font:600 13px "Hanken Grotesk",sans-serif;display:inline-flex;align-items:center;gap:8px;cursor:pointer;border:1px solid transparent}
+    .btn.primary{background:var(--brand);color:#fff}
+    .btn.primary:hover{background:var(--brand-hover)}
+    .btn.ghost{background:var(--surface);border-color:var(--line);color:var(--ink-soft)}
+    .btn.ghost:hover{background:var(--sunken);border-color:var(--line-strong)}
+    .btn svg.ic{width:16px;height:16px}
+
+    .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+
+    .filters{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+    .fpills{display:flex;gap:6px;flex-wrap:wrap}
+    .fpill{height:32px;padding:0 13px;display:inline-flex;align-items:center;gap:7px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--muted);background:var(--sunken);cursor:pointer}
+    .fpill.on{background:var(--brand-tint);color:var(--brand-deep)}
+    .fpill .cnt{font-size:11px;color:var(--faint);font-weight:600}
+    .fpill.on .cnt{color:var(--brand)}
+    .frow{display:flex;align-items:center;gap:10px}
+    .fdrop{height:36px;padding:0 12px;display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:9px;font-size:12.5px;font-weight:600;color:var(--ink-soft);background:var(--surface);cursor:pointer}
+    .fdrop svg.ic{width:14px;height:14px;color:var(--faint)}
+    .fsearch{flex:1;max-width:280px;height:36px;display:flex;align-items:center;gap:8px;padding:0 12px;border:1px solid var(--line);border-radius:9px;color:var(--muted);font-size:12.5px}
+    .fsearch svg.ic{width:15px;height:15px}
+    .fcount{margin-left:auto;font-size:12.5px;color:var(--muted)}
+    .fcount b{color:var(--ink);font-weight:700}
+
+    .tbl{width:100%;border-collapse:collapse;font-size:13px}
+    .tbl th{text-align:left;padding:11px 16px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--surface)}
+    .tbl td{padding:13px 16px;border-bottom:1px solid var(--line-soft);color:var(--ink-soft);vertical-align:middle}
+    .tbl tr:last-child td{border-bottom:0}
+    .tbl tr:hover td{background:var(--sunken)}
+    .tbl .amt{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink);font-weight:700}
+    .ck{width:16px;height:16px;border:1.5px solid var(--line-strong);border-radius:5px;display:block}
+    .cell-id{display:flex;align-items:center;gap:8px;color:var(--ink);font-size:12.5px}
+    .cell-id svg.ic{width:14px;height:14px;color:var(--faint)}
+    .cell-cust b{display:block;color:var(--ink);font-weight:600;font-size:12.5px}
+    .cell-cust span{color:var(--faint);font-size:11px}
+    .method{display:inline-flex;align-items:center;gap:8px;color:var(--ink-soft);font-size:12.5px}
+    .method svg.ic{width:16px;height:16px;color:var(--muted)}
+    .chevr{color:var(--faint)}
+    .chevr svg.ic{width:16px;height:16px}
+
+    .chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:7px;font-size:11.5px;font-weight:600;white-space:nowrap}
+    .chip.dot::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+    .s-captured{background:var(--ok-tint);color:var(--ok)}
+    .s-held{background:var(--warn-tint);color:var(--warn)}
+    .s-review{background:var(--brand-tint);color:var(--brand-deep)}
+    .s-failed{background:var(--bad-tint);color:var(--bad)}
+    .s-refunded{background:var(--sunken);color:var(--muted)}
+    .risk{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600}
+    .risk .bar{width:34px;height:5px;border-radius:3px;background:var(--sunken);overflow:hidden;flex:none}
+    .risk .bar i{display:block;height:100%;border-radius:3px}
+    .risk.low{color:var(--risk-low)} .risk.low .bar i{background:var(--risk-low);width:22%}
+    .risk.med{color:var(--risk-med)} .risk.med .bar i{background:var(--risk-med);width:56%}
+    .risk.high{color:var(--risk-high)} .risk.high .bar i{background:var(--risk-high);width:82%}
+
+    .pager{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+    .pager .pg{display:flex;gap:4px}
+    .pager .pg span{min-width:30px;height:30px;padding:0 8px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;font-weight:600;color:var(--ink-soft);cursor:pointer}
+    .pager .pg span.on{background:var(--brand);border-color:var(--brand);color:#fff}
+    .pager .pg span.nav svg.ic{width:14px;height:14px}
+  </style>
+</helmet>
+
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <span class="logo"><svg viewBox="0 0 24 24"><path d="M5 6.5h13M5 12h14M5 17.5h9" fill="none"/></svg></span>
+      <b>FinPay</b>
+    </div>
+    <div class="navgroup">
+      <div class="nav"><svg class="ic" viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5"/><path d="M6 10v9h12v-9"/></svg>Home</div>
+      <div class="nav active"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M3 10h18"/></svg>Payments</div>
+      <div class="nav"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h12v17l-3-1.8-3 1.8-3-1.8-3 1.8z"/><path d="M9 8.5h6M9 12.5h6"/></svg>Orders</div>
+      <div class="nav"><svg class="ic" viewBox="0 0 24 24"><path d="M9 5 4 10l5 5"/><path d="M4 10h11a5 5 0 0 1 0 10h-2.5"/></svg>Refunds</div>
+      <div class="nav"><svg class="ic" viewBox="0 0 24 24"><path d="M3 9 12 4l9 5"/><path d="M5.5 10.5v7M18.5 10.5v7M12 10.5v7"/><path d="M3.5 20h17"/></svg>Settlements</div>
+    </div>
+    <div class="navgroup">
+      <div class="navlbl">Grow</div>
+      <div class="nav"><svg class="ic" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><path d="M16 5.5a3 3 0 0 1 0 6M20.5 19a5.5 5.5 0 0 0-4-5.3"/></svg>Customers</div>
+      <div class="nav"><svg class="ic" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 6 0l2-2a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6 0l-2 2a4 4 0 0 0 6 6l1-1"/></svg>Payment links</div>
+    </div>
+    <div class="navgroup">
+      <div class="navlbl">Build</div>
+      <div class="nav"><svg class="ic" viewBox="0 0 24 24"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 6l-3 12"/></svg>Developers</div>
+      <div class="nav"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 4v2.5M12 17.5V20M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M4 12h2.5M17.5 12H20M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg>Settings</div>
+    </div>
+    <div class="env"><span class="pulse"></span><span>You&rsquo;re in <b>Test mode</b></span></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="searchbox"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>Search payments, orders, customers&hellip;</div>
+      <div class="spacer"></div>
+      <div class="seg"><span class="on">Test</span><span>Live</span></div>
+      <div class="iconbtn"><svg class="ic" viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></div>
+      <div class="avatar">SR</div>
+    </div>
+
+    <div class="content">
+      <div class="pagehead">
+        <div>
+          <h1>Payments</h1>
+          <p class="sub">Every payment attempt across your checkout links and API</p>
+        </div>
+        <div class="actions">
+          <button class="btn ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11M8 11l4 4 4-4M5 19h14"/></svg>Export</button>
+          <button class="btn primary"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Create payment link</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="filters">
+          <div class="fpills">
+            <span class="fpill on">All <span class="cnt">1,284</span></span>
+            <span class="fpill">Captured <span class="cnt">1,092</span></span>
+            <span class="fpill">Held <span class="cnt">63</span></span>
+            <span class="fpill">In review <span class="cnt">18</span></span>
+            <span class="fpill">Failed <span class="cnt">74</span></span>
+            <span class="fpill">Refunded <span class="cnt">37</span></span>
+          </div>
+          <div class="frow">
+            <span class="fdrop">Method <svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+            <span class="fdrop">Risk <svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+            <span class="fdrop">Amount <svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+            <span class="fdrop">Last 30 days <svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+            <span class="fsearch"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>Payment ID, order, email&hellip;</span>
+            <span class="fcount"><b>1,284</b> payments</span>
+          </div>
+        </div>
+
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th style="width:34px"><span class="ck"></span></th>
+              <th>Payment</th><th>Amount</th><th>Status</th><th>Risk</th><th>Method</th><th>Customer</th><th>Created</th><th style="width:36px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="ck"></span></td>
+              <td><span class="cell-id mono">pay_Q8x2mK4pLnRa</span></td>
+              <td class="amt">&#8377;4,520.00</td>
+              <td><span class="chip s-held dot">Held</span></td>
+              <td><span class="risk med"><span class="bar"><i></i></span>MEDIUM &middot; 52</span></td>
+              <td><span class="method"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M3 10h18"/></svg>&bull;&bull;&bull;&bull; 4242</span></td>
+              <td><span class="cell-cust"><b>Ananya Rao</b><span>ananya.rao@gmail.com</span></span></td>
+              <td>10 Sep, 2:14 PM</td>
+              <td><span class="chevr"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></td>
+            </tr>
+            <tr>
+              <td><span class="ck"></span></td>
+              <td><span class="cell-id mono">pay_Rb7Ht0wZ3kQm</span></td>
+              <td class="amt">&#8377;899.00</td>
+              <td><span class="chip s-captured dot">Captured</span></td>
+              <td><span class="risk low"><span class="bar"><i></i></span>LOW &middot; 8</span></td>
+              <td><span class="method"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3 4 8v8l8 5 8-5V8z"/></svg>UPI</span></td>
+              <td><span class="cell-cust"><b>Rohan Mehta</b><span>rohan@okaxis</span></span></td>
+              <td>10 Sep, 1:58 PM</td>
+              <td><span class="chevr"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></td>
+            </tr>
+            <tr>
+              <td><span class="ck"></span></td>
+              <td><span class="cell-id mono">pay_M3nD9cV1sYpL</span></td>
+              <td class="amt">&#8377;18,900.00</td>
+              <td><span class="chip s-review dot">In review</span></td>
+              <td><span class="risk high"><span class="bar"><i></i></span>HIGH &middot; 74</span></td>
+              <td><span class="method"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M3 10h18"/></svg>&bull;&bull;&bull;&bull; 8801</span></td>
+              <td><span class="cell-cust"><b>Vikram Shah</b><span>v.shah@company.in</span></span></td>
+              <td>10 Sep, 12:41 PM</td>
+              <td><span class="chevr"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></td>
+            </tr>
+            <tr>
+              <td><span class="ck"></span></td>
+              <td><span class="cell-id mono">pay_K1aW4uT6rEoF</span></td>
+              <td class="amt">&#8377;2,340.00</td>
+              <td><span class="chip s-captured dot">Captured</span></td>
+              <td><span class="risk low"><span class="bar"><i></i></span>LOW &middot; 12</span></td>
+              <td><span class="method"><svg class="ic" viewBox="0 0 24 24"><path d="M3 9 12 4l9 5"/><path d="M5.5 10.5v7M18.5 10.5v7M12 10.5v7M3.5 20h17"/></svg>Netbanking</span></td>
+              <td><span class="cell-cust"><b>Priya Nair</b><span>priya.nair@outlook.com</span></span></td>
+              <td>10 Sep, 11:30 AM</td>
+              <td><span class="chevr"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></td>
+            </tr>
+            <tr>
+              <td><span class="ck"></span></td>
+              <td><span class="cell-id mono">pay_T9yG2bN8mHxC</span></td>
+              <td class="amt">&#8377;12,900.00</td>
+              <td><span class="chip s-failed dot">Failed</span></td>
+              <td><span class="risk low"><span class="bar"><i></i></span>LOW &middot; 15</span></td>
+              <td><span class="method"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M3 10h18"/></svg>&bull;&bull;&bull;&bull; 1180</span></td>
+              <td><span class="cell-cust"><b>Fatima Sheikh</b><span>fatima.s@gmail.com</span></span></td>
+              <td>10 Sep, 10:52 AM</td>
+              <td><span class="chevr"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></td>
+            </tr>
+            <tr>
+              <td><span class="ck"></span></td>
+              <td><span class="cell-id mono">pay_H5oE7fL0dRkS</span></td>
+              <td class="amt">&#8377;3,100.00</td>
+              <td><span class="chip s-refunded dot">Refunded</span></td>
+              <td><span class="risk low"><span class="bar"><i></i></span>LOW &middot; 6</span></td>
+              <td><span class="method"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3 4 8v8l8 5 8-5V8z"/></svg>UPI</span></td>
+              <td><span class="cell-cust"><b>Arjun Iyer</b><span>arjun.iyer@gmail.com</span></span></td>
+              <td>10 Sep, 9:07 AM</td>
+              <td><span class="chevr"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></td>
+            </tr>
+            <tr>
+              <td><span class="ck"></span></td>
+              <td><span class="cell-id mono">pay_W2cR8kP5nDbT</span></td>
+              <td class="amt">&#8377;75,000.00</td>
+              <td><span class="chip s-held dot">Held</span></td>
+              <td><span class="risk med"><span class="bar"><i></i></span>MEDIUM &middot; 47</span></td>
+              <td><span class="method"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M3 10h18"/></svg>&bull;&bull;&bull;&bull; 3391</span></td>
+              <td><span class="cell-cust"><b>Deepa Krishnan</b><span>deepa.k@gmail.com</span></span></td>
+              <td>9 Sep, 8:22 PM</td>
+              <td><span class="chevr"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></td>
+            </tr>
+            <tr>
+              <td><span class="ck"></span></td>
+              <td><span class="cell-id mono">pay_L6hF1sM9zXqA</span></td>
+              <td class="amt">&#8377;450.00</td>
+              <td><span class="chip s-captured dot">Captured</span></td>
+              <td><span class="risk low"><span class="bar"><i></i></span>LOW &middot; 4</span></td>
+              <td><span class="method"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3 4 8v8l8 5 8-5V8z"/></svg>UPI</span></td>
+              <td><span class="cell-cust"><b>Sana Qureshi</b><span>sana.q@gmail.com</span></span></td>
+              <td>9 Sep, 7:44 PM</td>
+              <td><span class="chevr"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></td>
+            </tr>
+            <tr>
+              <td><span class="ck"></span></td>
+              <td><span class="cell-id mono">pay_D8kJ3nQ2mWfP</span></td>
+              <td class="amt">&#8377;6,780.00</td>
+              <td><span class="chip s-captured dot">Captured</span></td>
+              <td><span class="risk low"><span class="bar"><i></i></span>LOW &middot; 11</span></td>
+              <td><span class="method"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M3 10h18"/></svg>&bull;&bull;&bull;&bull; 7720</span></td>
+              <td><span class="cell-cust"><b>Karthik Menon</b><span>karthik.menon@gmail.com</span></span></td>
+              <td>9 Sep, 6:15 PM</td>
+              <td><span class="chevr"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></td>
+            </tr>
+            <tr>
+              <td><span class="ck"></span></td>
+              <td><span class="cell-id mono">pay_G4rN7bV0cHlK</span></td>
+              <td class="amt">&#8377;1,299.00</td>
+              <td><span class="chip s-captured dot">Captured</span></td>
+              <td><span class="risk low"><span class="bar"><i></i></span>LOW &middot; 9</span></td>
+              <td><span class="method"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3 4 8v8l8 5 8-5V8z"/></svg>UPI</span></td>
+              <td><span class="cell-cust"><b>Meera Joshi</b><span>meera.joshi@gmail.com</span></span></td>
+              <td>9 Sep, 5:03 PM</td>
+              <td><span class="chevr"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></td>
+            </tr>
+            <tr>
+              <td><span class="ck"></span></td>
+              <td><span class="cell-id mono">pay_P0tY5wL8kNzD</span></td>
+              <td class="amt">&#8377;9,900.00</td>
+              <td><span class="chip s-failed dot">Failed</span></td>
+              <td><span class="risk med"><span class="bar"><i></i></span>MEDIUM &middot; 44</span></td>
+              <td><span class="method"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M3 10h18"/></svg>&bull;&bull;&bull;&bull; 5567</span></td>
+              <td><span class="cell-cust"><b>Nikhil Bansal</b><span>nikhil.b@gmail.com</span></span></td>
+              <td>9 Sep, 3:29 PM</td>
+              <td><span class="chevr"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></td>
+            </tr>
+            <tr>
+              <td><span class="ck"></span></td>
+              <td><span class="cell-id mono">pay_C7mB2xR4qJsW</span></td>
+              <td class="amt">&#8377;540.00</td>
+              <td><span class="chip s-captured dot">Captured</span></td>
+              <td><span class="risk low"><span class="bar"><i></i></span>LOW &middot; 3</span></td>
+              <td><span class="method"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3 4 8v8l8 5 8-5V8z"/></svg>UPI</span></td>
+              <td><span class="cell-cust"><b>Aditi Verma</b><span>aditi.verma@gmail.com</span></span></td>
+              <td>9 Sep, 2:11 PM</td>
+              <td><span class="chevr"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></td>
+            </tr>
+            <tr>
+              <td><span class="ck"></span></td>
+              <td><span class="cell-id mono">pay_A1qL9dK6tYnV</span></td>
+              <td class="amt">&#8377;28,400.00</td>
+              <td><span class="chip s-captured dot">Captured</span></td>
+              <td><span class="risk low"><span class="bar"><i></i></span>LOW &middot; 14</span></td>
+              <td><span class="method"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M3 10h18"/></svg>&bull;&bull;&bull;&bull; 9014</span></td>
+              <td><span class="cell-cust"><b>Rahul Pillai</b><span>rahul.pillai@gmail.com</span></span></td>
+              <td>9 Sep, 12:47 PM</td>
+              <td><span class="chevr"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></td>
+            </tr>
+            <tr>
+              <td><span class="ck"></span></td>
+              <td><span class="cell-id mono">pay_E5nW8cH2mQpR</span></td>
+              <td class="amt">&#8377;3,650.00</td>
+              <td><span class="chip s-captured dot">Captured</span></td>
+              <td><span class="risk low"><span class="bar"><i></i></span>LOW &middot; 7</span></td>
+              <td><span class="method"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3 4 8v8l8 5 8-5V8z"/></svg>UPI</span></td>
+              <td><span class="cell-cust"><b>Tanvi Desai</b><span>tanvi.desai@gmail.com</span></span></td>
+              <td>9 Sep, 11:02 AM</td>
+              <td><span class="chevr"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="pager">
+          <span>Showing <b style="color:var(--ink)">1&ndash;14</b> of <b style="color:var(--ink)">1,284</b></span>
+          <div class="pg">
+            <span class="nav"><svg class="ic" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></span>
+            <span class="on">1</span><span>2</span><span>3</span><span>&hellip;</span><span>92</span>
+            <span class="nav"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span>
+          </div>
+          <span>Rows: 14 &#9662;</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

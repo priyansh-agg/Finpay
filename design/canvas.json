@@ -1,0 +1,18 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "Home / Overview", "x": 0, "y": 0, "w": 1440, "h": 1680 },
+    { "file": "Payments.dc.html", "title": "Payments list", "x": 1520, "y": 0, "w": 1440, "h": 1360 },
+    { "file": "PaymentDetail.dc.html", "title": "Payment detail — Risk tab", "x": 3040, "y": 0, "w": 1440, "h": 1440 },
+    { "file": "Checkout.dc.html", "title": "Hosted checkout", "x": 4560, "y": 0, "w": 1200, "h": 860 }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": -640,
+      "y": 40,
+      "w": 560,
+      "text": "FinPay — merchant dashboard + hosted checkout.\n\nDirection: approachable & bright — light surfaces, one confident brand blue, friendly rounded components, colour-coded states. An original visual system, not a clone of any provider.\n\nType: Bricolage Grotesque (display + big numbers) · Hanken Grotesk (UI) · IBM Plex Mono (IDs, amounts).\n\nPayment detail shows the Risk tab — where the Auto-Clear USP lives."
+    }
+  ],
+  "launch": { "view": "focused", "file": "Main.dc.html" }
+}
