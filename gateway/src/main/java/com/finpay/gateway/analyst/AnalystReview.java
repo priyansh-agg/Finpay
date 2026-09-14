@@ -27,6 +27,10 @@ public class AnalystReview {
     @Column(name = "payment_id", nullable = false)
     private UUID paymentId;
 
+    /** Inherited from the payment that queued this review; null outside a simulation run (V16). */
+    @Column(name = "run_id")
+    private UUID runId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "queue_status", nullable = false)
     private QueueStatus queueStatus = QueueStatus.PENDING;

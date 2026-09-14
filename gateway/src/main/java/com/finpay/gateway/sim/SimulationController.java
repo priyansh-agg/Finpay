@@ -1,5 +1,6 @@
 package com.finpay.gateway.sim;
 
+import com.finpay.gateway.auth.CurrentCaller;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,9 +20,10 @@ public class SimulationController {
 
     @PostMapping
     public SimulationService.SimSummary simulate(@RequestBody(required = false) SimRequest req) {
-        int count = req == null || req.count() == null ? 200 : req.count();
-        double fraudRate = req == null || req.fraudRate() == null ? 0.12 : req.fraudRate();
-        long seed = req == null || req.seed() == null ? System.nanoTime() : req.seed();
-        return sim.run(count, fraudRate, seed);
+        SimulationScenario scenario = SimulationScenario.of(
+                req == null ? null : req.count(),
+                req == null ? null : req.fraudRate(),
+                req == null ? null : req.seed());
+        return sim.run(scenario, CurrentCaller.get().subjectId());
     }
 }

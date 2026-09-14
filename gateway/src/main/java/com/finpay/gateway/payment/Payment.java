@@ -72,6 +72,14 @@ public class Payment {
     @Column(name = "captured_at")
     private Instant capturedAt;
 
+    /** Set only by the simulation harness (V16) — null for real traffic. */
+    @Column(name = "run_id")
+    private UUID runId;
+
+    /** Scenery a simulation run built to produce its population, not the population itself. */
+    @Column(name = "is_warmup", nullable = false)
+    private boolean warmup = false;
+
     @Version
     private long version;
 

@@ -12,7 +12,7 @@ import java.util.UUID;
 @Profile("phase1")
 public class NoopReviewQueue implements ReviewQueuePort {
     @Override
-    public void enqueue(UUID paymentId, String reason, double riskScore, Map<String, Object> featureSnapshot) {
+    public void enqueue(UUID paymentId, String reason, double riskScore, Map<String, Object> featureSnapshot, UUID runId) {
         // no-op
     }
 }

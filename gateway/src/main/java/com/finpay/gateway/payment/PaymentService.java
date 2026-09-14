@@ -82,17 +82,21 @@ public class PaymentService {
     }
 
     /**
-     * @param label hidden ground truth, set ONLY by the simulation harness. The API and the
-     *              hosted checkout build this command from request DTOs that have no such
-     *              field, so no outside caller can author a fraud label. Null for real traffic.
+     * @param label      hidden ground truth, set ONLY by the simulation harness. The API and the
+     *                   hosted checkout build this command from request DTOs that have no such
+     *                   field, so no outside caller can author a fraud label. Null for real traffic.
+     * @param simulation which simulation run this payment belongs to, and whether it is
+     *                   population or warm-up scenery — also simulation-harness-only, for the
+     *                   same reason. Null for real traffic.
      */
     public record CreatePaymentCommand(UUID merchantId, UUID orderId, String method, String token,
-                                       String deviceFingerprint, String ipAddress, GroundTruthLabel label) {
+                                       String deviceFingerprint, String ipAddress, GroundTruthLabel label,
+                                       SimulationContext simulation) {
 
-        /** Real traffic — API or hosted checkout. Carries no ground-truth label. */
+        /** Real traffic — API or hosted checkout. Carries no ground-truth label or run. */
         public CreatePaymentCommand(UUID merchantId, UUID orderId, String method, String token,
                                     String deviceFingerprint, String ipAddress) {
-            this(merchantId, orderId, method, token, deviceFingerprint, ipAddress, null);
+            this(merchantId, orderId, method, token, deviceFingerprint, ipAddress, null, null);
         }
     }
 
@@ -132,6 +136,10 @@ public class PaymentService {
         p.setDeviceFingerprint(cmd.deviceFingerprint());
         p.setIpAddress(cmd.ipAddress());
         p.setStatus(PaymentState.CREATED);
+        if (cmd.simulation() != null) {
+            p.setRunId(cmd.simulation().runId());
+            p.setWarmup(cmd.simulation().warmup());
+        }
         payments.save(p);
         recordAttempt(p, null, PaymentState.CREATED, "payment created");
         audit.record("MERCHANT", cmd.merchantId().toString(), "PAYMENT_CREATED", "PAYMENT", p.getId().toString(),
@@ -159,7 +167,7 @@ public class PaymentService {
         }
         if (risk.decision() == Decision.REVIEW) {
             transition(p, PaymentState.PENDING_REVIEW, "risk decision REVIEW");
-            reviewQueue.enqueue(p.getId(), "risk.decision=REVIEW", risk.finalScore(), riskSnapshot(p, risk));
+            reviewQueue.enqueue(p.getId(), "risk.decision=REVIEW", risk.finalScore(), riskSnapshot(p, risk), p.getRunId());
             outbox.publish("PAYMENT", p.getId(), p.getMerchantId(), "risk.flagged", eventPayload(p, "REVIEW"));
             metrics.paymentOutcome("review");
             return p;
@@ -189,7 +197,7 @@ public class PaymentService {
             outbox.publish("PAYMENT", p.getId(), p.getMerchantId(), "payment.captured", eventPayload(p, "AUTO"));
         } else if (risk.bucket() == RiskGate.Bucket.LOW || risk.bucket() == RiskGate.Bucket.MEDIUM) {
             transition(p, PaymentState.HELD, risk.bucket() + " risk — funds held pending review");
-            reviewQueue.enqueue(p.getId(), "held:" + risk.bucket(), risk.finalScore(), riskSnapshot(p, risk));
+            reviewQueue.enqueue(p.getId(), "held:" + risk.bucket(), risk.finalScore(), riskSnapshot(p, risk), p.getRunId());
             outbox.publish("PAYMENT", p.getId(), p.getMerchantId(), "payment.held", eventPayload(p, "HELD"));
             metrics.paymentOutcome("held");
             audit.record("SYSTEM", "payment-service", "PAYMENT_HELD", "PAYMENT", p.getId().toString(),

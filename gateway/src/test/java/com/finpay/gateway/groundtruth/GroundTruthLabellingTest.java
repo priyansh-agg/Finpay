@@ -2,6 +2,7 @@ package com.finpay.gateway.groundtruth;
 
 import com.finpay.gateway.auth.ApiKeyService;
 import com.finpay.gateway.order.Order;
+import com.finpay.gateway.sim.SimulationScenario;
 import com.finpay.gateway.sim.SimulationService;
 import com.finpay.gateway.support.AbstractIntegrationTest;
 import com.finpay.gateway.support.TestFixtures;
@@ -85,7 +86,7 @@ class GroundTruthLabellingTest extends AbstractIntegrationTest {
 
     @Test
     void theSimulationHarness_authorsTheLabels_andResolutionFollowsThem() {
-        sim.run(40, 0.3, 7L);
+        sim.run(new SimulationScenario(40, 0.3, 7L), "test");
 
         assertThat(count("SELECT count(*) FROM fraud_ground_truth WHERE intended_class = 'FRAUD'")).isPositive();
         assertThat(count("SELECT count(*) FROM fraud_ground_truth WHERE intended_class = 'LEGIT'")).isPositive();

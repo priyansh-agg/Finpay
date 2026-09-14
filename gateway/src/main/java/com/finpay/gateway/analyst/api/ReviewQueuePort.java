@@ -14,6 +14,9 @@ public interface ReviewQueuePort {
      * @param reason        why it landed in review (e.g. "risk.decision=REVIEW", "held:MEDIUM")
      * @param riskScore     final risk score at decision time
      * @param featureSnapshot features used, for the audit trail
+     * @param runId         the simulation run this payment belongs to, or null for real traffic —
+     *                      carried onto the review row so per-run metrics (interview sprint
+     *                      Day 10) don't have to join back through payments for it
      */
-    void enqueue(UUID paymentId, String reason, double riskScore, Map<String, Object> featureSnapshot);
+    void enqueue(UUID paymentId, String reason, double riskScore, Map<String, Object> featureSnapshot, UUID runId);
 }

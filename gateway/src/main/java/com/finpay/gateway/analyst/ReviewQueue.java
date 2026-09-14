@@ -26,9 +26,10 @@ public class ReviewQueue implements ReviewQueuePort {
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    public void enqueue(UUID paymentId, String reason, double riskScore, Map<String, Object> featureSnapshot) {
+    public void enqueue(UUID paymentId, String reason, double riskScore, Map<String, Object> featureSnapshot, UUID runId) {
         AnalystReview r = new AnalystReview();
         r.setPaymentId(paymentId);
+        r.setRunId(runId);
         r.setReason(reason);
         r.setRiskScoreAtReview(BigDecimal.valueOf(riskScore));
         r.setFeaturesAtReview(writeJson(featureSnapshot));
