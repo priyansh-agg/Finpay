@@ -6,7 +6,7 @@ import com.finpay.gateway.payment.Payment;
 import com.finpay.gateway.payment.PaymentRepository;
 import com.finpay.gateway.payment.PaymentService;
 import com.finpay.gateway.payment.PaymentState;
-import com.finpay.gateway.support.AbstractFraudStackTest;
+import com.finpay.gateway.support.AbstractIntegrationTest;
 import com.finpay.gateway.support.TestFixtures;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *  - the reference analyst decides it (never the auto-clear engine, since the ML model is absent);
  *  - a confirmed false auto-clear ratchets the confidence threshold up.
  */
-class AutoClearFlowTest extends AbstractFraudStackTest {
+class AutoClearFlowTest extends AbstractIntegrationTest {
 
     @Autowired TestFixtures fixtures;
     @Autowired PaymentService payments;

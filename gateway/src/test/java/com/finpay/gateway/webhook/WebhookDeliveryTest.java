@@ -25,6 +25,7 @@ class WebhookDeliveryTest extends AbstractIntegrationTest {
     @Autowired PaymentService payments;
     @Autowired WebhookEndpointRepository endpoints;
     @Autowired WebhookDeliveryRepository deliveries;
+    @Autowired WebhookDispatcher dispatcher;
     @LocalServerPort int port;
 
     @Test
@@ -71,11 +72,23 @@ class WebhookDeliveryTest extends AbstractIntegrationTest {
         assertThat(got).allMatch(s -> s.contains("verified=true"));
     }
 
+    /**
+     * Drives the dispatcher by hand rather than waiting on {@code @Scheduled} (schedulers are
+     * off under the test profile — they used to deadlock against fixture truncation). Same
+     * two steps the scheduler runs, just on this thread, so retry/backoff/dead-lettering is
+     * asserted deterministically instead of against a wall clock.
+     */
     private void poll(long timeoutMs, java.util.concurrent.Callable<Boolean> cond) throws Exception {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() < deadline) {
-            try { if (Boolean.TRUE.equals(cond.call())) return; } catch (Exception ignored) {}
-            Thread.sleep(250);
+            try {
+                dispatcher.fanOut();
+                dispatcher.deliver();
+                if (Boolean.TRUE.equals(cond.call())) return;
+            } catch (Exception ignored) {
+                // a delivery attempt may throw; the next pass retries
+            }
+            Thread.sleep(200);
         }
         throw new AssertionError("condition not met within " + timeoutMs + "ms");
     }

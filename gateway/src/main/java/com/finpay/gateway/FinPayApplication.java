@@ -2,7 +2,6 @@ package com.finpay.gateway;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * FinPay — sandboxed payment gateway with a real-time fraud-detection engine.
@@ -14,7 +13,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * correctness; we spent that budget on idempotency and ledger integrity instead.
  */
 @SpringBootApplication
-@EnableScheduling
 public class FinPayApplication {
     public static void main(String[] args) {
         SpringApplication.run(FinPayApplication.class, args);

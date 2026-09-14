@@ -4,7 +4,6 @@ import com.finpay.gateway.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.TestPropertySource;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -16,7 +15,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RateLimitTest extends AbstractIntegrationTest {
 
     @Autowired RateLimiter limiter;
-    @Autowired StringRedisTemplate redis;
 
     @BeforeEach
     void clearBuckets() {

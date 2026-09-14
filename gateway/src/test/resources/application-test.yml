@@ -23,6 +23,13 @@ spring:
       connect-timeout: 1000ms
 
 finpay:
+  # Background workers stay dormant in tests. They poll on a wall clock, so they would
+  # otherwise read tables while a fixture is truncating them — a real TRUNCATE-vs-reader
+  # deadlock that failed the suite intermittently. Tests that need a worker now invoke it
+  # directly (WebhookDeliveryTest, AutoClearFlowTest), which is deterministic and asserts
+  # the work rather than the clock.
+  scheduling:
+    enabled: false
   jwt:
     secret: test-secret-test-secret-test-secret-test-secret
     ttl-minutes: 60
@@ -35,7 +42,13 @@ finpay:
   simulator:
     mode: DETERMINISTIC
   risk:
-    auto-capture-max: 15
+    # The ML sidecar is pointed at a closed port, so tests score deterministically from the
+    # rule engine alone whatever is running on :9000 locally. MlClient and AutoClearClient
+    # both degrade to "no model" on connection refused, exactly as in production.
+    ml-base-url: http://127.0.0.1:9
+    # Deliberately NO auto-capture-max override. This profile used to set 15 against
+    # production's 6, which is why the checkout test could assert CAPTURED for a first-time
+    # customer — something production never does. Tests now run production's risk config.
   outbox:
     poll-interval-ms: 300
     max-attempts: 3
