@@ -3,6 +3,7 @@ package com.finpay.gateway.payment;
 import com.finpay.gateway.analyst.api.ReviewQueuePort;
 import com.finpay.gateway.common.audit.AuditService;
 import com.finpay.gateway.common.error.ApiException;
+import com.finpay.gateway.groundtruth.GroundTruthLabel;
 import com.finpay.gateway.groundtruth.GroundTruthService;
 import com.finpay.gateway.identity.Device;
 import com.finpay.gateway.identity.DeviceRepository;
@@ -33,6 +34,10 @@ import java.util.UUID;
 public class PaymentService {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
+
+    /** Attempts that ended without moving money; they never block another attempt on the order. */
+    static final java.util.Set<PaymentState> DEAD_STATES =
+            java.util.EnumSet.of(PaymentState.FAILED, PaymentState.VOIDED, PaymentState.CANCELLED);
 
     private final PaymentRepository payments;
     private final PaymentAttemptRepository attempts;
@@ -76,8 +81,20 @@ public class PaymentService {
         this.autoCaptureMax = autoCaptureMax;
     }
 
+    /**
+     * @param label hidden ground truth, set ONLY by the simulation harness. The API and the
+     *              hosted checkout build this command from request DTOs that have no such
+     *              field, so no outside caller can author a fraud label. Null for real traffic.
+     */
     public record CreatePaymentCommand(UUID merchantId, UUID orderId, String method, String token,
-                                       String deviceFingerprint, String ipAddress) {}
+                                       String deviceFingerprint, String ipAddress, GroundTruthLabel label) {
+
+        /** Real traffic — API or hosted checkout. Carries no ground-truth label. */
+        public CreatePaymentCommand(UUID merchantId, UUID orderId, String method, String token,
+                                    String deviceFingerprint, String ipAddress) {
+            this(merchantId, orderId, method, token, deviceFingerprint, ipAddress, null);
+        }
+    }
 
     /**
      * The full create-payment flow. Runs inside the IdempotencyService transaction, so
@@ -86,11 +103,23 @@ public class PaymentService {
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public Payment createPayment(CreatePaymentCommand cmd) {
-        Order order = orders.findByIdAndMerchantId(cmd.orderId(), cmd.merchantId())
+        // Lock the order for the rest of this transaction. The two checks below are
+        // check-then-insert; without the lock, two requests carrying DIFFERENT idempotency
+        // keys could both pass them before either inserts, and one order would take two
+        // payments. (Idempotency only dedupes the SAME key.)
+        Order order = orders.findByIdAndMerchantIdForUpdate(cmd.orderId(), cmd.merchantId())
                 .orElseThrow(() -> ApiException.notFound("Order"));
         if (!"CREATED".equals(order.getStatus())) {
             throw ApiException.conflict("Order is not payable (status=" + order.getStatus() + ")");
         }
+        // The order only turns PAID on capture, so a status check alone lets a second payment
+        // through while the first is HELD, in review, or authorised-awaiting-capture. A failed,
+        // voided or cancelled attempt does NOT block a retry — a customer whose card was
+        // declined must be able to try another one.
+        payments.findFirstByOrderIdAndStatusNotIn(order.getId(), DEAD_STATES).ifPresent(live -> {
+            throw ApiException.conflict("Order already has a payment in progress ("
+                    + live.getId() + ", status=" + live.getStatus() + ")");
+        });
 
         Payment p = new Payment();
         p.setOrderId(order.getId());
@@ -105,6 +134,9 @@ public class PaymentService {
         p.setStatus(PaymentState.CREATED);
         payments.save(p);
         recordAttempt(p, null, PaymentState.CREATED, "payment created");
+        audit.record("MERCHANT", cmd.merchantId().toString(), "PAYMENT_CREATED", "PAYMENT", p.getId().toString(),
+                null, Map.of("orderId", order.getId().toString(), "amountMinor", p.getAmountMinor(),
+                        "currency", p.getCurrency(), "method", p.getMethod()));
 
         transition(p, PaymentState.PENDING, "queued");
         transition(p, PaymentState.RISK_EVALUATING, "risk gate");
@@ -119,7 +151,7 @@ public class PaymentService {
         metrics.riskDecision(risk.decision().name(), risk.bucket().name());
 
         seenDevice(p);
-        plantGroundTruth(p);
+        plantGroundTruth(p, cmd.label());
 
         if (risk.decision() == Decision.BLOCK) {
             fail(p, "risk_blocked");
@@ -128,7 +160,7 @@ public class PaymentService {
         if (risk.decision() == Decision.REVIEW) {
             transition(p, PaymentState.PENDING_REVIEW, "risk decision REVIEW");
             reviewQueue.enqueue(p.getId(), "risk.decision=REVIEW", risk.finalScore(), riskSnapshot(p, risk));
-            outbox.publish("PAYMENT", p.getId(), "risk.flagged", eventPayload(p, "REVIEW"));
+            outbox.publish("PAYMENT", p.getId(), p.getMerchantId(), "risk.flagged", eventPayload(p, "REVIEW"));
             metrics.paymentOutcome("review");
             return p;
         }
@@ -154,17 +186,23 @@ public class PaymentService {
 
         if (autoCapture) {
             doCapture(p, "auto-capture (LOW risk, score " + risk.finalScore() + ")");
-            outbox.publish("PAYMENT", p.getId(), "payment.captured", eventPayload(p, "AUTO"));
+            outbox.publish("PAYMENT", p.getId(), p.getMerchantId(), "payment.captured", eventPayload(p, "AUTO"));
         } else if (risk.bucket() == RiskGate.Bucket.LOW || risk.bucket() == RiskGate.Bucket.MEDIUM) {
             transition(p, PaymentState.HELD, risk.bucket() + " risk — funds held pending review");
             reviewQueue.enqueue(p.getId(), "held:" + risk.bucket(), risk.finalScore(), riskSnapshot(p, risk));
-            outbox.publish("PAYMENT", p.getId(), "payment.held", eventPayload(p, "HELD"));
+            outbox.publish("PAYMENT", p.getId(), p.getMerchantId(), "payment.held", eventPayload(p, "HELD"));
             metrics.paymentOutcome("held");
+            audit.record("SYSTEM", "payment-service", "PAYMENT_HELD", "PAYMENT", p.getId().toString(),
+                    Map.of("status", "AUTHORIZED"),
+                    Map.of("status", "HELD", "riskBucket", risk.bucket().name(), "riskScore", risk.finalScore()));
         } else {
             // HIGH / CRITICAL that got authorised -> void the authorisation immediately
             transition(p, PaymentState.VOIDED, risk.bucket() + " risk — authorization voided");
-            outbox.publish("PAYMENT", p.getId(), "payment.voided", eventPayload(p, "VOID"));
+            outbox.publish("PAYMENT", p.getId(), p.getMerchantId(), "payment.voided", eventPayload(p, "VOID"));
             metrics.paymentOutcome("voided");
+            audit.record("SYSTEM", "payment-service", "PAYMENT_VOIDED", "PAYMENT", p.getId().toString(),
+                    Map.of("status", "AUTHORIZED"),
+                    Map.of("status", "VOIDED", "riskBucket", risk.bucket().name(), "riskScore", risk.finalScore()));
         }
         return p;
     }
@@ -178,24 +216,34 @@ public class PaymentService {
             throw ApiException.conflict("Payment is not capturable (status=" + p.getStatus() + ")");
         }
         doCapture(p, "manual capture");
-        outbox.publish("PAYMENT", p.getId(), "payment.captured", eventPayload(p, "MANUAL"));
+        outbox.publish("PAYMENT", p.getId(), p.getMerchantId(), "payment.captured", eventPayload(p, "MANUAL"));
         return p;
     }
 
-    /** Used by the analyst module to complete a HELD/PENDING_REVIEW payment. */
+    /**
+     * Used by the analyst module to complete a HELD/PENDING_REVIEW payment.
+     *
+     * @param actor who decided: {@code "AUTO_CLEAR"}, {@code "REFERENCE_ANALYST"} (both
+     *              algorithmic) or {@code "HUMAN"} (a dashboard user). Every call is one
+     *              review decision and is audited as one, whatever it resolves to — including
+     *              the case below where a review-cleared payment is still declined by the
+     *              (re-run) processor.
+     */
     @Transactional
     public Payment resolveReview(UUID paymentId, boolean clear, String actor, String reason) {
         Payment p = payments.findByIdForUpdate(paymentId).orElseThrow(() -> ApiException.notFound("Payment"));
-        if (p.getStatus() != PaymentState.HELD && p.getStatus() != PaymentState.PENDING_REVIEW) {
-            throw ApiException.conflict("Payment is not under review (status=" + p.getStatus() + ")");
+        PaymentState before = p.getStatus();
+        if (before != PaymentState.HELD && before != PaymentState.PENDING_REVIEW) {
+            throw ApiException.conflict("Payment is not under review (status=" + before + ")");
         }
         if (clear) {
-            if (p.getStatus() == PaymentState.PENDING_REVIEW) {
+            if (before == PaymentState.PENDING_REVIEW) {
                 // resume the processor path
                 transition(p, PaymentState.PROCESSING, "review cleared by " + actor);
                 PaymentSimulator.Result r = simulator.process(p.getMethod(), p.getPaymentToken(), p.getAmountMinor(), p.getCurrency());
                 if (r.outcome() == PaymentSimulator.Outcome.DECLINED) {
                     fail(p, r.declineReason());
+                    auditReviewDecision(p, before, actor, reason, "CLEAR");
                     return p;
                 }
                 p.setProcessorRef(r.processorRef());
@@ -203,14 +251,23 @@ public class PaymentService {
                 p.setAuthorizedAt(Instant.now());
             }
             doCapture(p, "review cleared: " + reason);
-            outbox.publish("PAYMENT", p.getId(), "payment.captured", eventPayload(p, "REVIEW_CLEAR"));
+            outbox.publish("PAYMENT", p.getId(), p.getMerchantId(), "payment.captured", eventPayload(p, "REVIEW_CLEAR"));
         } else {
             PaymentState from = p.getStatus();
             transition(p, from == PaymentState.HELD ? PaymentState.VOIDED : PaymentState.FAILED, "review rejected: " + reason);
             p.setFailedReason("review_rejected");
-            outbox.publish("PAYMENT", p.getId(), "payment.rejected", eventPayload(p, "REVIEW_REJECT"));
+            outbox.publish("PAYMENT", p.getId(), p.getMerchantId(), "payment.rejected", eventPayload(p, "REVIEW_REJECT"));
         }
+        auditReviewDecision(p, before, actor, reason, clear ? "CLEAR" : "REJECT");
         return p;
+    }
+
+    private void auditReviewDecision(Payment p, PaymentState before, String actor, String reason, String decision) {
+        String actorType = "HUMAN".equals(actor) ? "USER" : "SYSTEM";
+        audit.record(actorType, actor, "REVIEW_DECIDED", "PAYMENT", p.getId().toString(),
+                Map.of("status", before.name()),
+                Map.of("decision", decision, "reviewedBy", actor, "reason", reason == null ? "" : reason,
+                        "resultingStatus", p.getStatus().name()));
     }
 
     // --- reads ---
@@ -244,11 +301,14 @@ public class PaymentService {
     }
 
     private void fail(Payment p, String reason) {
+        PaymentState from = p.getStatus();
         transition(p, PaymentState.FAILED, "failed: " + reason);
         p.setFailedReason(reason);
         metrics.paymentOutcome("failed");
         featureStore.recordFailedAttempt(p.getCustomerId(), p.getId());
-        outbox.publish("PAYMENT", p.getId(), "payment.failed", eventPayload(p, reason));
+        outbox.publish("PAYMENT", p.getId(), p.getMerchantId(), "payment.failed", eventPayload(p, reason));
+        audit.record("SYSTEM", "payment-service", "PAYMENT_FAILED", "PAYMENT", p.getId().toString(),
+                Map.of("status", from.name()), Map.of("status", "FAILED", "reason", reason));
     }
 
     private void transition(Payment p, PaymentState target, String detail) {
@@ -285,9 +345,18 @@ public class PaymentService {
                         });
     }
 
-    private void plantGroundTruth(Payment p) {
-        boolean injected = "tok_fraud".equals(p.getPaymentToken());
-        groundTruth.plant(p.getId(), injected, injected ? "velocity_abuse" : null);
+    /**
+     * Plant the hidden label: authored by the simulation harness through the command, or
+     * absent for real traffic, which is then recorded as LIVE and assumed legitimate.
+     *
+     * <p>This used to be {@code "tok_fraud".equals(token)} with a hardcoded fraud type of
+     * "velocity_abuse". The token was an option on the public checkout page, so a tester could
+     * attach a fraud label to a clean payment and manufacture a "false" auto-clear; and every
+     * confirmed fraud case reached the pgvector store and the analyst's explanation labelled as
+     * velocity abuse, whatever the pattern really was.
+     */
+    private void plantGroundTruth(Payment p, GroundTruthLabel label) {
+        groundTruth.plant(p.getId(), label);
     }
 
     private Map<String, Object> eventPayload(Payment p, String note) {

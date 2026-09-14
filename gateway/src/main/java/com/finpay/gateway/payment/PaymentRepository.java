@@ -32,6 +32,9 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
 
     Page<Payment> findByStatusOrderByCreatedAtDesc(PaymentState status, Pageable pageable);
 
+    /** The payment currently occupying an order, if any: anything not in a dead state. */
+    Optional<Payment> findFirstByOrderIdAndStatusNotIn(UUID orderId, java.util.Collection<PaymentState> deadStates);
+
     long countByCustomerIdAndCreatedAtAfter(UUID customerId, Instant after);
 
     long countByCustomerIdAndStatusAndCreatedAtAfter(UUID customerId, PaymentState status, Instant after);
