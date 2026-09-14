@@ -55,6 +55,19 @@ public class AutoClearPolicy {
         }
     }
 
+    /**
+     * Drops the ratchet back to the floor. Deliberately NOT wired into the calibrator's own
+     * path — the ratchet is a safety mechanism (architecture-freeze Doubt 4) and must only
+     * ever be reset by something that knows it is looking at a fresh scenario, not by anything
+     * in the production decision path. Called by {@code SimulationService.reset()} for exactly
+     * that reason: without it, a false auto-clear a demo scenario deliberately provokes would
+     * silently change every later run's threshold, which is correct calibrator behaviour but
+     * indistinguishable from non-determinism unless something explicitly clears it back.
+     */
+    public void resetToFloor() {
+        jdbc.update("DELETE FROM system_config WHERE key = ?", KEY);
+    }
+
     private Double readStored() {
         try {
             return jdbc.queryForObject("SELECT value::double precision FROM system_config WHERE key = ?",

@@ -16,6 +16,8 @@ public interface AnalystReviewRepository extends JpaRepository<AnalystReview, UU
 
     Optional<AnalystReview> findFirstByPaymentIdOrderByCreatedAtDesc(UUID paymentId);
 
+    List<AnalystReview> findByRunIdAndQueueStatus(UUID runId, AnalystReview.QueueStatus queueStatus);
+
     long countByQueueStatus(AnalystReview.QueueStatus status);
 
     long countByReviewerType(String reviewerType);

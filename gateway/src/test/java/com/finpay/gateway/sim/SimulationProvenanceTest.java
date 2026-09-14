@@ -30,7 +30,7 @@ class SimulationProvenanceTest extends AbstractIntegrationTest {
 
     @Test
     void aRun_isRecordedAsAReproducibleRow() throws Exception {
-        SimulationScenario scenario = new SimulationScenario(50, 0.2, 4242L);
+        SimulationScenario scenario = new SimulationScenario(50, 0.2, 0.0, 0.0, 4242L);
         SimulationService.SimSummary summary = sim.run(scenario, "test-caller");
 
         SimulationRun row = runs.findById(summary.runId()).orElseThrow();
@@ -50,7 +50,7 @@ class SimulationProvenanceTest extends AbstractIntegrationTest {
 
     @Test
     void thePopulationReported_matchesWhatIsActuallyInTheDatabase_andExcludesWarmup() {
-        SimulationScenario scenario = new SimulationScenario(50, 0.2, 777L);
+        SimulationScenario scenario = new SimulationScenario(50, 0.2, 0.0, 0.0, 777L);
         SimulationService.SimSummary summary = sim.run(scenario, "test");
 
         long rawPopulation = count("SELECT count(*) FROM payments WHERE run_id = ? AND is_warmup = false", summary.runId());
@@ -82,7 +82,7 @@ class SimulationProvenanceTest extends AbstractIntegrationTest {
     @Test
     void aFlaggedPayment_carriesItsRunIdOntoTheReviewRow() {
         // fraudRate high enough that at least one review-worthy pattern fires within a small run.
-        SimulationScenario scenario = new SimulationScenario(60, 0.35, 55L);
+        SimulationScenario scenario = new SimulationScenario(60, 0.35, 0.0, 0.0, 55L);
         SimulationService.SimSummary summary = sim.run(scenario, "test");
 
         long reviewsForThisRun = count("SELECT count(*) FROM analyst_reviews WHERE run_id = ?", summary.runId());

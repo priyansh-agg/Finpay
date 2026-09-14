@@ -2,8 +2,10 @@ package com.finpay.gateway.groundtruth;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -31,4 +33,18 @@ public interface FraudGroundTruthRepository extends JpaRepository<FraudGroundTru
 
     @Query("select g from FraudGroundTruth g where g.resolved = true and g.actuallyFraudulent = true")
     List<FraudGroundTruth> allConfirmedFraud();
+
+    /**
+     * Closes the simulated dispute window immediately for one run's still-open ground-truth
+     * rows, instead of waiting on the wall clock. Used by {@code SimulationService.resolve}
+     * so a demo or a test gets final, reconciled numbers on demand.
+     */
+    @Modifying
+    @Transactional
+    @Query(value = """
+            UPDATE fraud_ground_truth g SET resolve_at = now()
+            FROM payments p
+            WHERE p.id = g.payment_id AND p.run_id = :runId AND g.resolved = false
+            """, nativeQuery = true)
+    int forceResolutionWindow(@Param("runId") UUID runId);
 }

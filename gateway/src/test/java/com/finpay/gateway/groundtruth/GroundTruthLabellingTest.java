@@ -86,7 +86,7 @@ class GroundTruthLabellingTest extends AbstractIntegrationTest {
 
     @Test
     void theSimulationHarness_authorsTheLabels_andResolutionFollowsThem() {
-        sim.run(new SimulationScenario(40, 0.3, 7L), "test");
+        sim.run(new SimulationScenario(40, 0.3, 0.0, 0.0, 7L), "test");
 
         assertThat(count("SELECT count(*) FROM fraud_ground_truth WHERE intended_class = 'FRAUD'")).isPositive();
         assertThat(count("SELECT count(*) FROM fraud_ground_truth WHERE intended_class = 'LEGIT'")).isPositive();

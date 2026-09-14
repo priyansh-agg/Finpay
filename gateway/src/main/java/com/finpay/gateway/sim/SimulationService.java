@@ -1,7 +1,14 @@
 package com.finpay.gateway.sim;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finpay.gateway.analyst.AnalystReview;
+import com.finpay.gateway.analyst.AnalystReviewRepository;
+import com.finpay.gateway.analyst.AutoClearPolicy;
+import com.finpay.gateway.analyst.ReviewDecider;
+import com.finpay.gateway.common.error.ApiException;
+import com.finpay.gateway.groundtruth.FraudGroundTruthRepository;
 import com.finpay.gateway.groundtruth.GroundTruthLabel;
+import com.finpay.gateway.groundtruth.GroundTruthResolver;
 import com.finpay.gateway.identity.Customer;
 import com.finpay.gateway.identity.CustomerRepository;
 import com.finpay.gateway.identity.Merchant;
@@ -12,6 +19,7 @@ import com.finpay.gateway.payment.Payment;
 import com.finpay.gateway.payment.PaymentService;
 import com.finpay.gateway.payment.SimulationContext;
 import com.finpay.gateway.risk.FeatureStore;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,16 +36,32 @@ import java.util.*;
  * bursts). Fraudulent transactions are tagged in the hidden ground-truth table so the
  * Auto-Clear Engine can be scored exactly.
  *
- * <p>Because fraud is a pattern (not a magic flag), the rule + ML layers have a real signal,
- * and the "zero false auto-clear" claim is a genuine result rather than a tautology.
- *
  * <p><b>Provenance (interview sprint Day 6).</b> Every call is recorded as a
  * {@link SimulationRun} — the scenario as requested, so the run is reproducible from that row
  * alone — and every payment it creates is tagged with that run's id and whether it is part of
- * the requested population or scenery the generator needed to produce it (a customer's seeded
- * history, the warm-up burst before a velocity-abuse pattern). The report this returns is
- * computed from those tags after the fact, from the database, not accumulated in memory while
- * generating — so it is what actually happened, including payments that failed to create.
+ * the requested population or scenery the generator needed to produce it.
+ *
+ * <p><b>The two hard populations (Day 7).</b> The original four fraud patterns all trip a
+ * rule by design, and the original "regular" legit pattern never does — which means none of
+ * them was ever actually eligible to be auto-cleared or wrongly rejected in the first place,
+ * and "zero false auto-clears" / "review reduction" were being claimed over a population that
+ * could not produce the failure either was meant to measure. Two more patterns fix that:
+ * {@code stealthRate} controls fraud disguised well enough to carry no rule signal at all
+ * (the only population the zero-false-auto-clear claim means anything over), and
+ * {@code fraudShapedLegitRate} controls genuine customers whose real behaviour trips a rule
+ * anyway (the population the review-reduction number is actually about).
+ *
+ * <p><b>Determinism.</b> Every identifier this run creates or touches — the customer pool's
+ * external refs, every device fingerprint — is scoped by this run's own id, not by the
+ * scenario's seed. Two runs with the SAME seed used to reuse the SAME customer rows (Postgres
+ * looks external refs up by {@code "sim-<seed>-cust-<i>"}) and could draw the SAME "random"
+ * device fingerprint strings (a fixed seed reproduces the same {@code Random} sequence) —
+ * so a second run with the same seed silently inherited the first run's velocity counters,
+ * seen-device history and device→account associations from Redis, and its outcome could
+ * differ from the first run's for reasons that had nothing to do with the scenario. Making
+ * every identifier unique per run removes the leak at its source, rather than requiring an
+ * operator to remember to flush Redis between runs (an explicit {@link #reset()} still exists,
+ * for the one thing that is deliberately NOT run-scoped — see its own docs).
  */
 @Service
 public class SimulationService {
@@ -50,12 +74,21 @@ public class SimulationService {
     private final PaymentService payments;
     private final FeatureStore featureStore;
     private final SimulationRunRepository runs;
+    private final AnalystReviewRepository reviews;
+    private final ReviewDecider reviewDecider;
+    private final FraudGroundTruthRepository groundTruth;
+    private final GroundTruthResolver groundTruthResolver;
+    private final AutoClearPolicy autoClearPolicy;
+    private final StringRedisTemplate redis;
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
     private final ObjectMapper json;
 
     public SimulationService(MerchantRepository merchants, CustomerRepository customers, OrderService orders,
                              PaymentService payments, FeatureStore featureStore, SimulationRunRepository runs,
+                             AnalystReviewRepository reviews, ReviewDecider reviewDecider,
+                             FraudGroundTruthRepository groundTruth, GroundTruthResolver groundTruthResolver,
+                             AutoClearPolicy autoClearPolicy, StringRedisTemplate redis,
                              JdbcTemplate jdbc, TransactionTemplate tx, ObjectMapper json) {
         this.merchants = merchants;
         this.customers = customers;
@@ -63,6 +96,12 @@ public class SimulationService {
         this.payments = payments;
         this.featureStore = featureStore;
         this.runs = runs;
+        this.reviews = reviews;
+        this.reviewDecider = reviewDecider;
+        this.groundTruth = groundTruth;
+        this.groundTruthResolver = groundTruthResolver;
+        this.autoClearPolicy = autoClearPolicy;
+        this.redis = redis;
         this.jdbc = jdbc;
         this.tx = tx;
         this.json = json;
@@ -70,16 +109,13 @@ public class SimulationService {
 
     /**
      * @param requestedDraws     the scenario's {@code count} — how many transaction attempts
-     *                           (legit or fraud) were requested. One fraud draw can expand into
-     *                           several actual payments (a velocity-abuse session IS several
-     *                           card attempts), so this is not the same number as
-     *                           {@code populationPayments} below, and that gap is itself
-     *                           informative rather than a bug to paper over.
+     *                           were requested. One fraud draw can expand into several actual
+     *                           payments (a velocity-abuse session IS several card attempts),
+     *                           so this is not the same number as {@code populationPayments}.
      * @param populationPayments payments actually created with {@code is_warmup = false} —
      *                           the population this run reports metrics over
      * @param warmupPayments     payments created as scenery ({@code is_warmup = true}):
-     *                           customer history, pattern warm-ups. Never counted above, and
-     *                           never fed into an auto-clear metric.
+     *                           customer history, pattern warm-ups. Never counted above.
      * @param legit / fraud      population-only, from the hidden ground-truth label
      */
     public record SimSummary(
@@ -104,15 +140,21 @@ public class SimulationService {
         UUID runId = runRow.getId();
         SimulationContext population = SimulationContext.population(runId);
         SimulationContext warmup = SimulationContext.warmup(runId);
+        // Every fingerprint this run mints is prefixed with a slice of its own id, so it can
+        // never collide with a fingerprint from any other run — see the class-level note on
+        // determinism. Customer external refs get the same treatment just below.
+        String devTag = runId.toString().substring(0, 8);
 
-        // A fresh pool of customers PER RUN (unique refs) so a confirmed fraud on one
-        // simulated customer doesn't blanket-reject every later transaction for them.
+        // A fresh pool of customers PER RUN so a confirmed fraud on one simulated customer
+        // doesn't blanket-reject every later transaction for them, AND so two runs never
+        // share a customer (and therefore never share that customer's Redis state) even when
+        // they share a seed.
         int poolSize = Math.max(20, scenario.count() / 12);
         long[] avgOptions = {15_000, 25_000, 40_000, 60_000, 90_000, 120_000, 200_000, 350_000};
         List<UUID> customerIds = new ArrayList<>();
         long[] avgFor = new long[poolSize];
         for (int i = 0; i < poolSize; i++) {
-            String ref = "sim-" + scenario.seed() + "-cust-" + i;
+            String ref = "sim-" + runId + "-cust-" + i;
             Customer c = customers.findByMerchantIdAndExternalRef(merchantId, ref)
                     .orElseGet(() -> customers.save(new Customer(merchantId, ref, ref + "@sim.local")));
             customerIds.add(c.getId());
@@ -121,11 +163,13 @@ public class SimulationService {
                     60 + rng.nextInt(740), c.getId());
             long avg = avgOptions[rng.nextInt(avgOptions.length)];
             avgFor[i] = avg;
-            // seed 3 normal captures so the rolling average is populated (each a separate session)
+            // Seed 3 normal captures on the SAME device/IP this customer's later population
+            // draws use (homeDevice/homeIp below) — otherwise a customer's first population
+            // draw looks like a brand-new device by accident, which used to happen here.
             for (int k = 0; k < 3; k++) {
                 featureStore.resetVelocity(c.getId());
-                pay(merchantId, c.getId(), jitter(rng, avg, 0.2), "tok_valid", "sim-dev-home-" + scenario.seed() + "-" + i,
-                        "10.1." + (i / 256) + "." + (i % 256), GroundTruthLabel.legit("history_seed"), warmup);
+                pay(merchantId, c.getId(), jitter(rng, avg, 0.2), "tok_valid", homeDevice(devTag, i), homeIp(i),
+                        GroundTruthLabel.legit("history_seed"), warmup);
             }
             featureStore.resetVelocity(c.getId());
         }
@@ -138,10 +182,16 @@ public class SimulationService {
             // each logical transaction is a fresh session unless it is a deliberate burst
             featureStore.resetVelocity(customerId);
             if (isFraud) {
-                fraudTxn(rng, merchantId, customerId, avg, population, warmup);
+                if (rng.nextDouble() < scenario.stealthRate()) {
+                    stealthFraudTxn(rng, merchantId, customerId, ci, devTag, avg, population);
+                } else {
+                    fraudTxn(rng, merchantId, customerId, devTag, avg, population, warmup);
+                }
+            } else if (rng.nextDouble() < scenario.fraudShapedLegitRate()) {
+                fraudShapedLegitTxn(rng, merchantId, customerId, devTag, population);
             } else {
-                pay(merchantId, customerId, jitter(rng, avg, 0.4),
-                        "tok_valid", "sim-dev-home-" + ci, "10.0.0." + ci, GroundTruthLabel.legit("regular"), population);
+                pay(merchantId, customerId, jitter(rng, avg, 0.4), "tok_valid", homeDevice(devTag, ci), homeIp(ci),
+                        GroundTruthLabel.legit("regular"), population);
             }
         }
 
@@ -150,11 +200,64 @@ public class SimulationService {
         runRow.setSummary(writeJson(summary));
         runs.save(runRow);
 
-        log.info("simulation {} done: requested {} draws ({}% fraud) -> {} population payments, {} warm-up; "
-                        + "buckets={} statuses={}",
-                runId, scenario.count(), Math.round(scenario.fraudRate() * 100),
+        log.info("simulation {} done: requested {} draws ({}% fraud, {}% stealth, {}% fraud-shaped-legit) -> "
+                        + "{} population payments, {} warm-up; buckets={} statuses={}",
+                runId, scenario.count(), Math.round(scenario.fraudRate() * 100), Math.round(scenario.stealthRate() * 100),
+                Math.round(scenario.fraudShapedLegitRate() * 100),
                 summary.populationPayments(), summary.warmupPayments(), summary.bucketCounts(), summary.statusCounts());
         return summary;
+    }
+
+    /**
+     * Force this run to a fully-decided, fully-resolved state right now, instead of waiting
+     * on the wall clock (ground truth's simulated dispute window) or the review-queue
+     * scheduler — which is disabled outright under the test profile, and which a live demo
+     * shouldn't need to wait on either. Order matters: reviews must be decided (so their
+     * {@code autoclear_decisions} rows exist) BEFORE ground truth resolves, because resolution
+     * is what reconciles those rows against the now-known label.
+     */
+    public SimSummary resolve(UUID runId) {
+        SimulationRun row = runs.findById(runId).orElseThrow(() -> ApiException.notFound("Simulation run"));
+
+        for (AnalystReview r : reviews.findByRunIdAndQueueStatus(runId, AnalystReview.QueueStatus.PENDING)) {
+            try {
+                reviewDecider.decide(r.getId());
+            } catch (Exception e) {
+                log.warn("could not decide review {} while resolving run {}: {}", r.getId(), runId, e.toString());
+            }
+        }
+        groundTruth.forceResolutionWindow(runId);
+        groundTruthResolver.resolveDue();
+
+        SimSummary summary = summarize(runId, row.getMerchantId(), readScenario(row));
+        row.setSummary(writeJson(summary));
+        runs.save(row);
+        return summary;
+    }
+
+    /**
+     * Clears the one piece of state this service deliberately does NOT scope per run: the
+     * Redis feature store, and the auto-clear confidence threshold.
+     *
+     * <p>Both are shared across runs on purpose elsewhere in the system (a real gateway has
+     * exactly one feature store and one calibrated threshold, not one per simulation), so
+     * unlike customer pools and device fingerprints they cannot simply be made run-unique.
+     * The threshold in particular only ever ratchets UP after a confirmed false auto-clear
+     * (architecture-freeze Doubt 4) — which stealth fraud can now genuinely trigger — so a
+     * demo or test that wants two same-seed runs to produce the SAME numbers must call this
+     * between them, or the second run's higher threshold is not non-determinism, it is the
+     * calibrator doing exactly its job against what the first run left behind.
+     *
+     * @return how many Redis keys were cleared
+     */
+    public int reset() {
+        var keys = redis.keys("finpay:*");
+        int cleared = keys == null ? 0 : keys.size();
+        if (keys != null && !keys.isEmpty()) {
+            redis.delete(keys);
+        }
+        autoClearPolicy.resetToFloor();
+        return cleared;
     }
 
     /** Everything this run actually produced, read back from the database it wrote to. */
@@ -189,28 +292,26 @@ public class SimulationService {
     }
 
     /**
-     * Injects one fraudulent "session" as a realistic pattern, and says so in ground truth.
+     * Injects one fraudulent "session" as a realistic, RULE-TRIPPING pattern, and says so in
+     * ground truth. What makes these transactions fraud is the label the harness writes, not
+     * a special card token — the fraud itself pays with {@code tok_valid}, because a stolen
+     * card authorises. Every FRAUD-labelled payment here is population; the warm-up
+     * transactions that set the scene (seven clean payments to push velocity past its
+     * threshold, several declines before the "successful" fraud) are warm-up, tagged and
+     * excluded from every metric.
      *
-     * <p>What makes these transactions fraud is the label the harness writes, not a special
-     * card token — the fraud itself pays with {@code tok_valid}, because a stolen card
-     * authorises. Every FRAUD-labelled payment here is population (it is the signal the run
-     * exists to produce); the warm-up transactions that set the scene — a velocity burst needs
-     * seven clean payments first to push the rule past its threshold, a failed-attempt burst
-     * needs several declines before the "successful" fraud — are warm-up, tagged and excluded
-     * from every metric (interview sprint Day 6; previously they were indistinguishable from
-     * the population they were built to produce).
-     *
-     * <p>Every pattern here is obvious by design — it trips rules — so its disguise level is 0.
-     * Disguised ("stealth") fraud arrives with the scenario engine's second half, Day 7.
+     * <p>Every pattern here is obvious by design — it trips a rule — so its disguise level is
+     * 0. That is exactly why none of these four patterns can test "zero false auto-clears":
+     * a transaction that trips a rule is either held at a bucket the auto-clear gate never
+     * reaches, or rejected outright by the reference analyst's hard pattern checks, before its
+     * ML confidence is ever asked. See {@link #stealthFraudTxn} for the population that can.
      */
-    private void fraudTxn(Random rng, UUID merchantId, UUID customerId, long avg,
+    private void fraudTxn(Random rng, UUID merchantId, UUID customerId, String devTag, long avg,
                           SimulationContext population, SimulationContext warmup) {
         int pattern = rng.nextInt(4);
         switch (pattern) {
             case 0 -> { // velocity burst from a fresh device
-                String dev = "sim-dev-fraud-" + rng.nextInt(1_000_000);
-                // 7 warm-up txns push velocity5m well past the rule threshold (>5) FIRST, so
-                // every fraud-labelled txn that follows carries a detectable velocity signal.
+                String dev = "sim-dev-" + devTag + "-fraud-" + rng.nextInt(1_000_000);
                 for (int k = 0; k < 7; k++) {
                     pay(merchantId, customerId, jitter(rng, avg, 0.3), "tok_valid", dev, randIp(rng),
                             GroundTruthLabel.legit("fraud_session_context"), warmup);
@@ -222,20 +323,68 @@ public class SimulationService {
             }
             case 1 -> // new device + high value
                     pay(merchantId, customerId, avg * (4 + rng.nextInt(8)), "tok_valid",
-                            "sim-dev-fraud-" + rng.nextInt(1_000_000), randIp(rng),
+                            "sim-dev-" + devTag + "-fraud-" + rng.nextInt(1_000_000), randIp(rng),
                             GroundTruthLabel.fraud("new_device_high_value", 0.0), population);
             case 2 -> // large deviation from norm
                     pay(merchantId, customerId, (long) (avg * (3.5 + rng.nextDouble() * 6)), "tok_valid",
-                            "sim-dev-home-shared", randIp(rng), GroundTruthLabel.fraud("amount_deviation", 0.0), population);
+                            "sim-dev-" + devTag + "-home-shared", randIp(rng),
+                            GroundTruthLabel.fraud("amount_deviation", 0.0), population);
             default -> { // failed-attempt burst then success
+                String dev = "sim-dev-" + devTag + "-fraud-x";
                 for (int k = 0; k < 4 + rng.nextInt(4); k++) {
-                    pay(merchantId, customerId, jitter(rng, avg, 0.2), "tok_declined",
-                            "sim-dev-fraud-x", randIp(rng), GroundTruthLabel.legit("fraud_session_context"), warmup);
+                    pay(merchantId, customerId, jitter(rng, avg, 0.2), "tok_declined", dev, randIp(rng),
+                            GroundTruthLabel.legit("fraud_session_context"), warmup);
                 }
-                pay(merchantId, customerId, jitter(rng, avg, 0.2), "tok_valid", "sim-dev-fraud-x", randIp(rng),
+                pay(merchantId, customerId, jitter(rng, avg, 0.2), "tok_valid", dev, randIp(rng),
                         GroundTruthLabel.fraud("failed_attempt_burst", 0.0), population);
             }
         }
+    }
+
+    /**
+     * Fraud crafted to carry no rule signal: the customer's own known device, their own known
+     * IP, an amount close to their own average — everything a "stealth" transaction has to
+     * get right is simply to look exactly like the "regular" legit pattern below, because
+     * that population is the only thing it is compared against by the risk engine. No warm-up
+     * transactions either; unlike the obvious patterns, this one has no scene to set. If this
+     * lands in a bucket the Auto-Clear Engine reaches and the reference analyst has no adverse
+     * pattern to reject it on (neither does, by construction), it is genuinely eligible to be
+     * auto-cleared — and if it is, it is a real false auto-clear once ground truth resolves,
+     * which is the entire point of this population existing: "zero false auto-clears" is
+     * either true against transactions that could actually slip through, or it isn't a claim
+     * about anything.
+     */
+    private void stealthFraudTxn(Random rng, UUID merchantId, UUID customerId, int ci, String devTag, long avg,
+                                 SimulationContext population) {
+        pay(merchantId, customerId, jitter(rng, avg, 0.25), "tok_valid", homeDevice(devTag, ci), homeIp(ci),
+                GroundTruthLabel.fraud("stealth", 1.0), population);
+    }
+
+    /**
+     * A genuine customer whose real behaviour trips a rule anyway: established (tenure comes
+     * from the seeded pool, so this is never a brand-new account), but buying from a device
+     * and IP that has never seen them before — travelling, a new laptop, a borrowed connection
+     * — at an amount large enough to trip NEW_DEVICE_NEW_IP (over ₹1,500) but decoupled from
+     * their own average on purpose: this is about an unfamiliar CONTEXT, not an unusual
+     * AMOUNT (that is {@code fraudTxn}'s "amount_deviation" pattern). The amount is drawn wide
+     * enough (₹1,500–₹2,700) to sometimes clear ReferenceAnalyst's hard "new device + new IP
+     * on a large amount" reject threshold and sometimes not — both outcomes are real and worth
+     * showing: a false positive that gets correctly cleared, and one that does not.
+     */
+    private void fraudShapedLegitTxn(Random rng, UUID merchantId, UUID customerId, String devTag,
+                                     SimulationContext population) {
+        long amount = 150_000 + rng.nextInt(120_000);
+        pay(merchantId, customerId, amount, "tok_valid",
+                "sim-dev-" + devTag + "-travel-" + rng.nextInt(1_000_000), randIp(rng),
+                GroundTruthLabel.legit("fraud_shaped_travel"), population);
+    }
+
+    private String homeDevice(String devTag, int ci) {
+        return "sim-dev-" + devTag + "-home-" + ci;
+    }
+
+    private String homeIp(int ci) {
+        return "10.0.0." + ci;
     }
 
     private Payment pay(UUID merchantId, UUID customerId, long amount, String token, String device, String ip,
@@ -266,6 +415,14 @@ public class SimulationService {
     private long count(String sql, Object... args) {
         Long n = jdbc.queryForObject(sql, Long.class, args);
         return n == null ? 0 : n;
+    }
+
+    private SimulationScenario readScenario(SimulationRun row) {
+        try {
+            return json.readValue(row.getScenario(), SimulationScenario.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("corrupt stored scenario for run " + row.getId(), e);
+        }
     }
 
     private String writeJson(Object o) {
