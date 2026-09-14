@@ -3,7 +3,7 @@ import { api } from "../api";
 
 type Metrics = {
   flaggedTotal: number; decided: number; autoCleared: number; referenceReviewed: number;
-  autoClearRatePct: number; manualReviewReductionPct: number;
+  autoClearRatePct: number; manualReviewReductionPct: number | null;
   autoClearsResolved: number; falseAutoClears: number; falseAutoClearRatePct: number; threshold: number;
 };
 type Review = {
@@ -60,7 +60,11 @@ export function AnalystView() {
             <Stat n={metrics.flaggedTotal} l="transactions flagged for review" />
             <Stat n={metrics.autoCleared} l="auto-cleared (no human)" good />
             <Stat n={metrics.referenceReviewed} l="sent to an analyst" />
-            <Stat n={`${metrics.manualReviewReductionPct}%`} l="manual review volume removed" good />
+            <Stat
+              n={metrics.manualReviewReductionPct == null ? "—" : `${metrics.manualReviewReductionPct}%`}
+              l="manual review volume removed"
+              good={metrics.manualReviewReductionPct != null}
+            />
             <Stat
               n={metrics.falseAutoClears}
               l={`false auto-clears (of ${metrics.autoClearsResolved} resolved)`}
@@ -74,6 +78,12 @@ export function AnalystView() {
           Ground truth (<span className="mono">actually_fraudulent</span>) is simulated and resolves after a delay,
           then reconciled against every auto-clear. A single false auto-clear ratchets the threshold up.
         </p>
+        {metrics?.manualReviewReductionPct == null && (
+          <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+            &ldquo;Manual review volume removed&rdquo; needs a real human-reviewed baseline to divide by, which the
+            review queue doesn&rsquo;t have yet — every review is currently decided automatically.
+          </p>
+        )}
       </div>
 
       <div className="panel">

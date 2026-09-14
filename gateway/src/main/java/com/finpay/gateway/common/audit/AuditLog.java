@@ -22,6 +22,15 @@ public class AuditLog {
     @GeneratedValue
     private UUID id;
 
+    /**
+     * Gapless creation order (V15), DB-generated. Several rows from one request commonly
+     * share the same {@code created_at} — Postgres's {@code now()} is the transaction start
+     * time, not the statement time — so {@code seq}, not {@code created_at}, is what orders
+     * "what happened first" correctly.
+     */
+    @Column(insertable = false, updatable = false)
+    private Long seq;
+
     @Column(name = "actor_type", nullable = false)
     private String actorType;
 

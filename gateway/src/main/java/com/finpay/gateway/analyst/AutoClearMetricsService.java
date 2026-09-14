@@ -20,15 +20,21 @@ public class AutoClearMetricsService {
      * @param decided             reviews that have been decided
      * @param autoCleared         decided by the Auto-Clear Engine (no human needed)
      * @param referenceReviewed   decided by the reference analyst
-     * @param autoClearRatePct    autoCleared / decided
-     * @param manualReviewReductionPct  same number, framed as workload removed from humans
+     * @param autoClearRatePct    autoCleared / decided — a real, measured number
+     * @param manualReviewReductionPct  workload actually removed from a HUMAN reviewer,
+     *        i.e. {@code autoCleared / flaggedEligibleForAHuman}. There is currently no
+     *        recorded human baseline to divide by — the scheduler decides every review
+     *        itself (interview sprint Day 8 gives the queue a real human path) — so this is
+     *        {@code null} rather than a number. It used to silently equal
+     *        {@code autoClearRatePct}, which is a different question ("what fraction of
+     *        decided reviews were auto-cleared?") wearing this one's label.
      * @param autoClearsResolved  auto-clears whose ground truth is now known
      * @param falseAutoClears     auto-clears later confirmed fraudulent (MUST be ~0)
      * @param falseAutoClearRatePct falseAutoClears / autoClearsResolved
      */
     public record Metrics(
             long flaggedTotal, long decided, long autoCleared, long referenceReviewed,
-            double autoClearRatePct, double manualReviewReductionPct,
+            double autoClearRatePct, Double manualReviewReductionPct,
             long autoClearsResolved, long falseAutoClears, double falseAutoClearRatePct,
             double threshold) {}
 
@@ -56,7 +62,7 @@ public class AutoClearMetricsService {
         double falseRate = autoClearsResolved == 0 ? 0 : 100.0 * falseAutoClears / autoClearsResolved;
 
         return new Metrics(flaggedTotal, decided, autoCleared, referenceReviewed,
-                round(autoClearRate), round(autoClearRate),
+                round(autoClearRate), null,
                 autoClearsResolved, falseAutoClears, round(falseRate), threshold);
     }
 
