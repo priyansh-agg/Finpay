@@ -9,7 +9,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "refunds")
+@Table(name = "refunds",
+       uniqueConstraints = @UniqueConstraint(name = "ux_refunds_merchant_idem_key",
+                                             columnNames = {"merchant_id", "idem_key"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -39,7 +41,8 @@ public class Refund {
 
     private String reason;
 
-    @Column(name = "idem_key", unique = true)
+    /** Unique per merchant, not globally (V13). */
+    @Column(name = "idem_key")
     private String idemKey;
 
     @Version

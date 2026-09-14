@@ -10,7 +10,7 @@ import java.util.UUID;
 
 public interface RefundRepository extends JpaRepository<Refund, UUID> {
 
-    Optional<Refund> findByIdemKey(String idemKey);
+    Optional<Refund> findByMerchantIdAndIdemKey(UUID merchantId, String idemKey);
 
     List<Refund> findByPaymentId(UUID paymentId);
 

@@ -10,8 +10,15 @@ import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 import java.util.UUID;
 
+/**
+ * One claimed Idempotency-Key. Uniqueness is per merchant, not global (see V10) — the key
+ * string is chosen by the caller, so scoping it globally would let one merchant's
+ * "order-42" collide with another's.
+ */
 @Entity
-@Table(name = "idempotency_keys")
+@Table(name = "idempotency_keys",
+       uniqueConstraints = @UniqueConstraint(name = "ux_idem_merchant_key",
+                                             columnNames = {"merchant_id", "idem_key"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -23,7 +30,7 @@ public class IdempotencyKey {
     @GeneratedValue
     private UUID id;
 
-    @Column(name = "idem_key", nullable = false, unique = true)
+    @Column(name = "idem_key", nullable = false)
     private String idemKey;
 
     @Column(name = "merchant_id", nullable = false)

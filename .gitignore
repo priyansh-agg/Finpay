@@ -31,3 +31,7 @@ dashboard/.vite/
 
 # Logs
 *.log
+
+# Design canvas: the .dc.html sources and canvas.json are hand-authored and tracked; the
+# seeded output (payload + sources inlined, ~2.5MB) is a generated build artifact.
+design/finpay-gateway.html

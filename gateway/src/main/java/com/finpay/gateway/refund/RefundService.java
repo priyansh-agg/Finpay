@@ -35,21 +35,34 @@ public class RefundService {
      * Refund a captured payment, fully or partially. Concurrency-safe:
      * {@code findByIdForUpdate} serialises concurrent refunds on the same payment, so the
      * "sum of succeeded refunds + this one <= captured amount" check can never be raced.
-     * Also idempotent on {@code idemKey} (unique column).
+     *
+     * <p>Idempotent on {@code (merchantId, idemKey)}. The key is looked up only AFTER the
+     * payment lock is held: two concurrent requests with the same key then queue on the lock,
+     * and the second one sees the first one's committed refund instead of racing it into the
+     * unique index. A key reused for a different payment or amount is refused rather than
+     * answered with a refund the caller didn't ask for.
      */
     @Transactional
     public Refund refund(UUID merchantId, UUID paymentId, Long amountMinor, String reason, String idemKey) {
-        if (idemKey != null) {
-            var existing = refunds.findByIdemKey(idemKey);
-            if (existing.isPresent()) {
-                return existing.get();
-            }
-        }
-
         Payment payment = payments.findByIdForUpdate(paymentId)
                 .orElseThrow(() -> ApiException.notFound("Payment"));
         if (!payment.getMerchantId().equals(merchantId)) {
             throw ApiException.notFound("Payment");
+        }
+
+        if (idemKey != null) {
+            var existing = refunds.findByMerchantIdAndIdemKey(merchantId, idemKey);
+            if (existing.isPresent()) {
+                Refund prior = existing.get();
+                if (!prior.getPaymentId().equals(paymentId)) {
+                    throw ApiException.validation("Idempotency-Key was already used to refund a different payment");
+                }
+                if (amountMinor != null && amountMinor != prior.getAmountMinor()) {
+                    throw ApiException.validation("Idempotency-Key reused with a different refund amount (original="
+                            + prior.getAmountMinor() + ")");
+                }
+                return prior;
+            }
         }
         if (payment.getStatus() != PaymentState.CAPTURED && payment.getStatus() != PaymentState.REFUNDED) {
             throw ApiException.conflict("Only captured payments can be refunded (status=" + payment.getStatus() + ")");
@@ -82,9 +95,10 @@ public class RefundService {
             payment.setStatus(PaymentState.REFUNDED);
         }
 
-        outbox.publish("REFUND", refund.getId(), "refund.succeeded", Map.of(
+        outbox.publish("REFUND", refund.getId(), merchantId, "refund.succeeded", Map.of(
                 "refundId", refund.getId().toString(),
                 "paymentId", paymentId.toString(),
+                "merchantId", merchantId.toString(),
                 "amountMinor", amount,
                 "currency", payment.getCurrency(),
                 "fullyRefunded", already + amount == payment.getAmountMinor()));
