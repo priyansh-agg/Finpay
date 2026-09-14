@@ -151,7 +151,7 @@ export function MerchantView() {
             <input value={payOrderId} onChange={(e) => setPayOrderId(e.target.value)} placeholder="uuid" /></div>
           <div className="field" style={{ width: 190 }}><label>token</label>
             <select value={token} onChange={(e) => setToken(e.target.value)}>
-              <option>tok_valid</option><option>tok_declined</option><option>tok_fraud</option>
+              <option>tok_valid</option><option>tok_declined</option>
               <option>tok_insufficient_funds</option><option>tok_expired</option>
             </select></div>
           <div className="field" style={{ width: 160 }}><label>device</label>

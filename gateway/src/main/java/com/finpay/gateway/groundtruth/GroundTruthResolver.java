@@ -54,7 +54,7 @@ public class GroundTruthResolver {
     public void resolveDue() {
         List<FraudGroundTruth> due = repo.findDueForResolution(java.time.Instant.now(), PageRequest.of(0, 100));
         for (FraudGroundTruth g : due) {
-            boolean fraud = g.isInjectedFraud();
+            boolean fraud = g.isFraudLabel();
             g.setActuallyFraudulent(fraud);
             g.setResolved(true);
             if (fraud) {
@@ -74,7 +74,7 @@ public class GroundTruthResolver {
         }
         if (!due.isEmpty()) {
             log.info("resolved {} ground-truth rows ({} confirmed fraud)",
-                    due.size(), due.stream().filter(FraudGroundTruth::isInjectedFraud).count());
+                    due.size(), due.stream().filter(FraudGroundTruth::isFraudLabel).count());
         }
     }
 

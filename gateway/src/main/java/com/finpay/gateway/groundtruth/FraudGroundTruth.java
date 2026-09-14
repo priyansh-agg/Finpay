@@ -31,12 +31,32 @@ public class FraudGroundTruth {
     @Column(name = "actually_fraudulent")
     private Boolean actuallyFraudulent;
 
+    /** For confirmed fraud: the pattern name the pgvector store and the analyst's explanation use. */
     @Column(name = "fraud_type")
     private String fraudType;
 
-    /** What the simulator planted for this transaction. Drives resolution. */
-    @Column(name = "injected_fraud", nullable = false)
-    private boolean injectedFraud = false;
+    public enum LabelSource { SIMULATION, LIVE, LEGACY_TOKEN }
+
+    /** What the transaction's author says it is. Drives resolution (V14). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "intended_class", nullable = false)
+    private GroundTruthLabel.IntendedClass intendedClass = GroundTruthLabel.IntendedClass.LEGIT;
+
+    /** Who authored the label: the simulation harness, or nobody (LIVE traffic, assumed legitimate). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "label_source", nullable = false)
+    private LabelSource labelSource = LabelSource.LIVE;
+
+    @Column(name = "scenario_pattern")
+    private String scenarioPattern;
+
+    /** 0..1 — how much the transaction looks like the other class. */
+    @Column(name = "disguise_level")
+    private Double disguiseLevel;
+
+    public boolean isFraudLabel() {
+        return intendedClass == GroundTruthLabel.IntendedClass.FRAUD;
+    }
 
     @Column(name = "resolve_at", nullable = false)
     private Instant resolveAt;

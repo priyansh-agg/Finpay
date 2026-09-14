@@ -19,8 +19,9 @@ public class ConfigurablePaymentSimulator implements PaymentSimulator {
     public enum Mode { DETERMINISTIC, PROBABILISTIC }
 
     private static final Map<String, Result> TOKEN_MAP = Map.of(
+            // No fraud token: it used to plant the hidden fraud label, from a public checkout
+            // menu. A card token decides what the processor answers, and nothing more.
             "tok_valid",              Result.authorized("sim_auth"),
-            "tok_fraud",              Result.authorizedButFlagged("sim_auth_flagged"),
             "tok_declined",           Result.declined("card_declined"),
             "tok_insufficient_funds", Result.declined("insufficient_funds"),
             "tok_expired",            Result.declined("expired_card")
@@ -62,6 +63,6 @@ public class ConfigurablePaymentSimulator implements PaymentSimulator {
 
     private Result withRef(Result r, String ref) {
         if (r.outcome() == Outcome.DECLINED) return r;
-        return new Result(r.outcome(), ref, null, r.processorFlagged());
+        return new Result(r.outcome(), ref, null);
     }
 }

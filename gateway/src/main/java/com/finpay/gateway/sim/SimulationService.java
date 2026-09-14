@@ -1,5 +1,6 @@
 package com.finpay.gateway.sim;
 
+import com.finpay.gateway.groundtruth.GroundTruthLabel;
 import com.finpay.gateway.identity.Customer;
 import com.finpay.gateway.identity.CustomerRepository;
 import com.finpay.gateway.identity.Merchant;
@@ -82,7 +83,8 @@ public class SimulationService {
             // seed 3 normal captures so the rolling average is populated (each a separate session)
             for (int k = 0; k < 3; k++) {
                 featureStore.resetVelocity(c.getId());
-                pay(merchantId, c.getId(), jitter(rng, avg, 0.2), "tok_valid", "sim-dev-home-" + seed + "-" + i, "10.1." + (i / 256) + "." + (i % 256));
+                pay(merchantId, c.getId(), jitter(rng, avg, 0.2), "tok_valid", "sim-dev-home-" + seed + "-" + i,
+                        "10.1." + (i / 256) + "." + (i % 256), GroundTruthLabel.legit("history_seed"));
             }
             featureStore.resetVelocity(c.getId());
         }
@@ -104,7 +106,7 @@ public class SimulationService {
                 fraud.increment();
             } else {
                 p = pay(merchantId, customerId, jitter(rng, avg, 0.4),
-                        "tok_valid", "sim-dev-home-" + ci, "10.0.0." + ci);
+                        "tok_valid", "sim-dev-home-" + ci, "10.0.0." + ci, GroundTruthLabel.legit("regular"));
                 legit.increment();
             }
             if (p != null) {
@@ -119,51 +121,63 @@ public class SimulationService {
     }
 
     /**
-     * Injects one fraudulent "session" as a realistic pattern. Only the transactions that
-     * genuinely carry the fraud signal are tagged in ground truth ({@code tok_fraud});
-     * warm-up / context transactions use {@code tok_valid} and are not counted as fraud,
-     * so the false-negative measurement is fair.
+     * Injects one fraudulent "session" as a realistic pattern, and says so in ground truth.
+     *
+     * <p>What makes these transactions fraud is the label the harness writes, not a special
+     * card token — the fraud itself pays with {@code tok_valid}, because a stolen card
+     * authorises. Only the transactions that carry the fraud signal are labelled FRAUD, each
+     * under its real pattern name. The warm-up and failed-attempt transactions that set the
+     * scene are labelled LEGIT as "fraud_session_context", preserving the harness's original
+     * evaluation semantics (sprint Day 6 replaces that with explicit warm-up tagging).
+     *
+     * <p>Every pattern here is obvious by design — it trips rules — so its disguise level is 0.
+     * Disguised ("stealth") fraud arrives with the scenario engine on sprint Day 7.
      */
     private Payment fraudTxn(Random rng, UUID merchantId, UUID customerId, long avg) {
+        GroundTruthLabel context = GroundTruthLabel.legit("fraud_session_context");
         int pattern = rng.nextInt(4);
         return switch (pattern) {
             case 0 -> { // velocity burst from a fresh device
                 String dev = "sim-dev-fraud-" + rng.nextInt(1_000_000);
                 // 7 warm-up txns push velocity5m well past the rule threshold (>5) FIRST, so
-                // every fraud-tagged txn that follows carries a detectable velocity signal.
+                // every fraud-labelled txn that follows carries a detectable velocity signal.
                 for (int k = 0; k < 7; k++) {
-                    pay(merchantId, customerId, jitter(rng, avg, 0.3), "tok_valid", dev, randIp(rng));
+                    pay(merchantId, customerId, jitter(rng, avg, 0.3), "tok_valid", dev, randIp(rng), context);
                 }
                 Payment last = null;
                 for (int k = 0; k < 3 + rng.nextInt(4); k++) {
-                    last = pay(merchantId, customerId, jitter(rng, avg, 0.3), "tok_fraud", dev, randIp(rng));
+                    last = pay(merchantId, customerId, jitter(rng, avg, 0.3), "tok_valid", dev, randIp(rng),
+                            GroundTruthLabel.fraud("velocity_abuse", 0.0));
                 }
                 yield last;
             }
             case 1 -> // new device + high value
-                    pay(merchantId, customerId, avg * (4 + rng.nextInt(8)), "tok_fraud",
-                            "sim-dev-fraud-" + rng.nextInt(1_000_000), randIp(rng));
+                    pay(merchantId, customerId, avg * (4 + rng.nextInt(8)), "tok_valid",
+                            "sim-dev-fraud-" + rng.nextInt(1_000_000), randIp(rng),
+                            GroundTruthLabel.fraud("new_device_high_value", 0.0));
             case 2 -> // large deviation from norm
-                    pay(merchantId, customerId, (long) (avg * (3.5 + rng.nextDouble() * 6)), "tok_fraud",
-                            "sim-dev-home-shared", randIp(rng));
+                    pay(merchantId, customerId, (long) (avg * (3.5 + rng.nextDouble() * 6)), "tok_valid",
+                            "sim-dev-home-shared", randIp(rng), GroundTruthLabel.fraud("amount_deviation", 0.0));
             default -> { // failed-attempt burst then success
                 for (int k = 0; k < 4 + rng.nextInt(4); k++) {
                     pay(merchantId, customerId, jitter(rng, avg, 0.2), "tok_declined",
-                            "sim-dev-fraud-x", randIp(rng));
+                            "sim-dev-fraud-x", randIp(rng), context);
                 }
-                yield pay(merchantId, customerId, jitter(rng, avg, 0.2), "tok_fraud", "sim-dev-fraud-x", randIp(rng));
+                yield pay(merchantId, customerId, jitter(rng, avg, 0.2), "tok_valid", "sim-dev-fraud-x", randIp(rng),
+                        GroundTruthLabel.fraud("failed_attempt_burst", 0.0));
             }
         };
     }
 
-    private Payment pay(UUID merchantId, UUID customerId, long amount, String token, String device, String ip) {
+    private Payment pay(UUID merchantId, UUID customerId, long amount, String token, String device, String ip,
+                        GroundTruthLabel label) {
         try {
             return tx.execute(s -> {
                 Customer c = customers.findById(customerId).orElseThrow();
                 Order o = orders.create(merchantId, c.getExternalRef(), c.getEmail(), Math.max(amount, 1000),
                         "INR", "sim", Map.of());
                 return payments.createPayment(new PaymentService.CreatePaymentCommand(
-                        merchantId, o.getId(), "CARD", token, device, ip));
+                        merchantId, o.getId(), "CARD", token, device, ip, label));
             });
         } catch (RuntimeException e) {
             log.debug("sim payment failed: {}", e.toString());

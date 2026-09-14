@@ -36,7 +36,6 @@ const TEST_TOKENS = [
   { value: "tok_valid", label: "Test card •••• 1111 (succeeds)" },
   { value: "tok_declined", label: "Test card •••• 0002 (declined)" },
   { value: "tok_insufficient_funds", label: "Test card •••• 0341 (insufficient funds)" },
-  { value: "tok_fraud", label: "Test card •••• 9995 (flagged as suspicious)" },
 ];
 
 /**

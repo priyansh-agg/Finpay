@@ -123,8 +123,10 @@ curl -s localhost:8080/v1/payments -H "X-API-Key: $KEY" -H 'Idempotency-Key: abc
   -d '{"orderId":"<id>","method":"CARD","token":"tok_valid"}'
 ```
 
-Simulator tokens (deterministic mode): `tok_valid`, `tok_declined`, `tok_fraud`,
-`tok_insufficient_funds`, `tok_expired`.
+Simulator tokens (deterministic mode): `tok_valid`, `tok_declined`,
+`tok_insufficient_funds`, `tok_expired`. There is deliberately no fraud token — a card token
+only decides what the processor answers. Fraud in the sandbox is authored by the simulation
+harness (`POST /v1/admin/simulate`), which carries its own hidden ground-truth label.
 
 ## Checkout links (Razorpay/Stripe-style)
 

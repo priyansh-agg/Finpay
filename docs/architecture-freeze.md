@@ -11,7 +11,10 @@ All 6 open doubts from the project plan, resolved and locked. Tech stack + pgvec
 - **Deterministic token map** for demo/testing:
   - `tok_valid` → `AUTHORIZED`
   - `tok_declined` → `FAILED`
-  - `tok_fraud` → `AUTHORIZED but flagged`
+  - ~~`tok_fraud` → `AUTHORIZED but flagged`~~ — **superseded** (interview sprint, Day 4):
+    removed. The token silently planted the hidden fraud label, and it was an option on the
+    public checkout, so any tester could label a clean payment as fraud. Fraud is now authored
+    only by the simulation harness; see `docs/AUDIT.md` → Remediation log.
   - `tok_insufficient_funds` → `FAILED`
 - **Probabilistic mode** (config toggle: `DETERMINISTIC` vs `PROBABILISTIC`) for load-testing / realistic volume — configurable success rates per method (e.g. 92% CARD, 88% UPI).
 - Both CARD and UPI implement a common `PaymentSimulator` interface, so swapping in a real processor (Razorpay/Stripe) later is a drop-in — good "production-mindset" talking point for interviews.
