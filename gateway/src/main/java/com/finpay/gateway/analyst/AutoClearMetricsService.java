@@ -4,6 +4,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 @Service
 public class AutoClearMetricsService {
 
@@ -77,6 +79,109 @@ public class AutoClearMetricsService {
                 humanReviewed, simulatedAnalystReviewed,
                 round(autoClearRate), manualReviewReductionPct,
                 autoClearsResolved, falseAutoClears, round(falseRate), threshold);
+    }
+
+    /**
+     * Ground-truth-scored effectiveness of the WHOLE fraud-prevention pipeline, not just the
+     * Auto-Clear Engine — a rejection before capture (review, or a hard risk block) and a
+     * write-off after capture but before settlement (interview sprint Day 9 — the closer for
+     * the Day 7 auto-capture-bypass finding) both count as "caught". EVALUATION ONLY: computed
+     * from the hidden {@code fraud_ground_truth} table, never used to decide anything
+     * (architecture-freeze Doubt 3) — this is a reporting surface, not a decision path.
+     *
+     * <p>"Caught by review" is deliberately narrower than "any failed payment": a plain
+     * simulated processor decline ({@code failed_reason} anything other than
+     * {@code review_rejected}/{@code risk_blocked}) means the card was declined for an ordinary
+     * reason, not that the fraud pipeline did anything — counting it would inflate recall for
+     * catches nobody made.
+     *
+     * @param totalFraud / totalLegit     resolved ground-truth population in scope
+     * @param fraudCaughtByReview   actual fraud rejected before capture — VOIDED, or FAILED
+     *        with a review/risk reason
+     * @param fraudCaughtByWriteOff actual fraud captured, then written off before settlement —
+     *        the auto-capture bypass, closed downstream instead of upstream
+     * @param fraudCaught           fraudCaughtByReview + fraudCaughtByWriteOff
+     * @param fraudCaughtMinor      amount (minor units) of fraudCaught
+     * @param fraudMissed           actual fraud captured and NOT (yet) written off — money that
+     *        has reached, or is still on track to reach, the merchant right now
+     * @param fraudMissedMinor      amount (minor units) of fraudMissed
+     * @param fraudStillPending     actual fraud whose payment hasn't reached a terminal
+     *        capture/reject state yet — excluded from recall/precision, reported for transparency
+     * @param legitWronglyRejected  actual legit rejected by review or a risk block — friction
+     *        with no fraud behind it
+     * @param legitCorrectlyCleared actual legit that captured
+     * @param recallPct     fraudCaught / (fraudCaught + fraudMissed) — of all the fraud that
+     *        existed, how much did the whole pipeline actually stop
+     * @param precisionPct  fraudCaught / (fraudCaught + legitWronglyRejected) — of everything
+     *        the pipeline blocked, how much of it was actually fraud
+     * @param falsePositiveRatePct  legitWronglyRejected / totalLegit
+     */
+    public record FraudMetrics(
+            long totalFraud, long totalLegit,
+            long fraudCaughtByReview, long fraudCaughtByWriteOff, long fraudCaught, long fraudCaughtMinor,
+            long fraudMissed, long fraudMissedMinor, long fraudStillPending,
+            long legitWronglyRejected, long legitCorrectlyCleared,
+            Double recallPct, Double precisionPct, Double falsePositiveRatePct) {}
+
+    private static final String REJECTED_BY_PIPELINE =
+            "(p.status = 'VOIDED' OR (p.status = 'FAILED' AND p.failed_reason IN ('review_rejected','risk_blocked')))";
+
+    @Transactional(readOnly = true)
+    public FraudMetrics computeFraudMetrics(UUID runId) {
+        String scope = runId == null ? "" : " AND p.run_id = ?";
+
+        long totalFraud = scoped("g.actually_fraudulent = true", scope, runId);
+        long totalLegit = scoped("g.actually_fraudulent = false", scope, runId);
+
+        long fraudCaughtByReview = scoped("g.actually_fraudulent = true AND " + REJECTED_BY_PIPELINE, scope, runId);
+        long fraudCaughtByWriteOff = scoped("g.actually_fraudulent = true AND p.written_off_at IS NOT NULL", scope, runId);
+        long fraudMissed = scoped(
+                "g.actually_fraudulent = true AND p.status = 'CAPTURED' AND p.written_off_at IS NULL", scope, runId);
+        long fraudStillPending = totalFraud - fraudCaughtByReview - fraudCaughtByWriteOff - fraudMissed;
+
+        long legitWronglyRejected = scoped("g.actually_fraudulent = false AND " + REJECTED_BY_PIPELINE, scope, runId);
+        long legitCorrectlyCleared = scoped("g.actually_fraudulent = false AND p.status = 'CAPTURED'", scope, runId);
+
+        long fraudCaught = fraudCaughtByReview + fraudCaughtByWriteOff;
+        long fraudCaughtMinor = scopedAmount("g.actually_fraudulent = true AND (" + REJECTED_BY_PIPELINE
+                + " OR p.written_off_at IS NOT NULL)", scope, runId);
+        long fraudMissedMinor = scopedAmount(
+                "g.actually_fraudulent = true AND p.status = 'CAPTURED' AND p.written_off_at IS NULL", scope, runId);
+
+        Double recallPct = (fraudCaught + fraudMissed) == 0 ? null
+                : round(100.0 * fraudCaught / (fraudCaught + fraudMissed));
+        Double precisionPct = (fraudCaught + legitWronglyRejected) == 0 ? null
+                : round(100.0 * fraudCaught / (fraudCaught + legitWronglyRejected));
+        Double falsePositiveRatePct = totalLegit == 0 ? null : round(100.0 * legitWronglyRejected / totalLegit);
+
+        return new FraudMetrics(totalFraud, totalLegit,
+                fraudCaughtByReview, fraudCaughtByWriteOff, fraudCaught, fraudCaughtMinor,
+                fraudMissed, fraudMissedMinor, fraudStillPending,
+                legitWronglyRejected, legitCorrectlyCleared,
+                recallPct, precisionPct, falsePositiveRatePct);
+    }
+
+    /**
+     * {@code is_warmup = false} always, not just when scoped to one run: simulation warm-up
+     * scenery (customer-history seeding) is guaranteed-legit padding with no adversarial intent
+     * behind it — mixing it into precision/recall/FP-rate dilutes exactly the way a "1,000
+     * transactions" run silently becoming 1,712 payments distorted every other summary before
+     * Day 6 excluded it (interview sprint, same lesson: population, not scenery).
+     */
+    private long scoped(String condition, String scope, UUID runId) {
+        String sql = "SELECT count(*) FROM payments p JOIN fraud_ground_truth g ON g.payment_id = p.id "
+                + "WHERE g.resolved = true AND p.is_warmup = false AND " + condition + scope;
+        Long n = runId == null ? jdbc.queryForObject(sql, Long.class)
+                : jdbc.queryForObject(sql, Long.class, runId);
+        return n == null ? 0 : n;
+    }
+
+    private long scopedAmount(String condition, String scope, UUID runId) {
+        String sql = "SELECT coalesce(sum(p.amount_minor), 0) FROM payments p JOIN fraud_ground_truth g ON g.payment_id = p.id "
+                + "WHERE g.resolved = true AND p.is_warmup = false AND " + condition + scope;
+        Long n = runId == null ? jdbc.queryForObject(sql, Long.class)
+                : jdbc.queryForObject(sql, Long.class, runId);
+        return n == null ? 0 : n;
     }
 
     private long count(String sql) {

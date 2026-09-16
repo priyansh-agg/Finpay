@@ -245,12 +245,35 @@ public class SimulationService {
             }
         }
         groundTruth.forceResolutionWindow(runId);
-        groundTruthResolver.resolveDue();
+        resolveGroundTruthFully(runId);
 
         SimSummary summary = summarize(runId, row.getMerchantId(), readScenario(row));
         row.setSummary(writeJson(summary));
         runs.save(row);
         return summary;
+    }
+
+    /**
+     * {@link GroundTruthResolver#resolveDue()} is a bounded, global sweep (100 rows per call,
+     * not scoped to a run) meant for its own steady 5s scheduled tick under ordinary load — one
+     * call is not guaranteed to resolve everything a single large run just planted. A scenario
+     * whose population + warm-up rows exceed that page size left some of this run's ground
+     * truth silently {@code resolved = false}, which {@link AutoClearMetricsService} and every
+     * other resolved-only reader would then just quietly skip — not wrong, just incomplete,
+     * and "resolve this run right now" is supposed to mean ALL of it. Loop until this run has
+     * none left, capped so a genuine problem elsewhere fails loudly instead of spinning forever.
+     */
+    private void resolveGroundTruthFully(UUID runId) {
+        int maxPasses = 50;
+        for (int pass = 0; pass < maxPasses; pass++) {
+            groundTruthResolver.resolveDue();
+            Long stillDue = jdbc.queryForObject(
+                    "SELECT count(*) FROM fraud_ground_truth g JOIN payments p ON p.id = g.payment_id "
+                            + "WHERE p.run_id = ? AND g.resolved = false",
+                    Long.class, runId);
+            if (stillDue == null || stillDue == 0) return;
+        }
+        log.warn("run {} still has unresolved ground truth after {} resolution passes", runId, maxPasses);
     }
 
     /**

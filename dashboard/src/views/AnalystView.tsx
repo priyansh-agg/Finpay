@@ -7,6 +7,13 @@ type Metrics = {
   autoClearRatePct: number; manualReviewReductionPct: number | null;
   autoClearsResolved: number; falseAutoClears: number; falseAutoClearRatePct: number; threshold: number;
 };
+type FraudMetrics = {
+  totalFraud: number; totalLegit: number;
+  fraudCaughtByReview: number; fraudCaughtByWriteOff: number; fraudCaught: number; fraudCaughtMinor: number;
+  fraudMissed: number; fraudMissedMinor: number; fraudStillPending: number;
+  legitWronglyRejected: number; legitCorrectlyCleared: number;
+  recallPct: number | null; precisionPct: number | null; falsePositiveRatePct: number | null;
+};
 type Review = {
   id: string; paymentId: string; queueStatus: string; reviewerType: string | null;
   decision: string | null; reason: string | null; riskScore: number | null;
@@ -16,6 +23,7 @@ type Review = {
 
 export function AnalystView() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [fraudMetrics, setFraudMetrics] = useState<FraudMetrics | null>(null);
   const [queue, setQueue] = useState<Review[]>([]);
   const [status, setStatus] = useState<"PENDING" | "DECIDED">("PENDING");
   const [err, setErr] = useState<string | null>(null);
@@ -24,11 +32,12 @@ export function AnalystView() {
 
   const refresh = useCallback(async () => {
     try {
-      const [m, q] = await Promise.all([
+      const [m, fm, q] = await Promise.all([
         api<Metrics>("/v1/analyst/metrics/autoclear"),
+        api<FraudMetrics>("/v1/analyst/metrics/fraud"),
         api<Review[]>(`/v1/analyst/reviews?status=${status}&limit=60`),
       ]);
-      setMetrics(m); setQueue(q); setErr(null);
+      setMetrics(m); setFraudMetrics(fm); setQueue(q); setErr(null);
     } catch (e: any) { setErr(e.message); }
   }, [status]);
 
@@ -92,6 +101,43 @@ export function AnalystView() {
             least one review below (not just via the demo bot) to make this a real number.
           </p>
         )}
+      </div>
+
+      <div className="panel">
+        <h2>Fraud detection effectiveness</h2>
+        {fraudMetrics && (
+          <div className="grid">
+            <Stat
+              n={fraudMetrics.recallPct == null ? "—" : `${fraudMetrics.recallPct}%`}
+              l={`recall — fraud caught (${fraudMetrics.fraudCaught} of ${fraudMetrics.totalFraud})`}
+              good={fraudMetrics.recallPct != null && fraudMetrics.recallPct >= 90}
+            />
+            <Stat
+              n={fraudMetrics.precisionPct == null ? "—" : `${fraudMetrics.precisionPct}%`}
+              l="precision — of everything blocked, how much was real fraud"
+              good={fraudMetrics.precisionPct != null && fraudMetrics.precisionPct >= 90}
+            />
+            <Stat
+              n={fraudMetrics.falsePositiveRatePct == null ? "—" : `${fraudMetrics.falsePositiveRatePct}%`}
+              l={`false-positive rate (${fraudMetrics.legitWronglyRejected} of ${fraudMetrics.totalLegit} legit)`}
+              bad={fraudMetrics.falsePositiveRatePct != null && fraudMetrics.falsePositiveRatePct > 20}
+            />
+            <Stat n={fraudMetrics.fraudCaughtByReview} l="fraud caught before capture (review)" good />
+            <Stat n={fraudMetrics.fraudCaughtByWriteOff} l="fraud caught after capture (settlement write-off)" good />
+            <Stat
+              n={fraudMetrics.fraudMissed}
+              l={`fraud missed — reached the merchant (₹${(fraudMetrics.fraudMissedMinor / 100).toLocaleString()})`}
+              bad={fraudMetrics.fraudMissed > 0}
+              good={fraudMetrics.fraudMissed === 0}
+            />
+          </div>
+        )}
+        <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
+          Scored against the hidden ground truth (<span className="mono">actually_fraudulent</span>) — evaluation
+          only, never a decision input. "Caught" covers both a review rejecting it before capture and a settlement
+          write-off catching it after capture but before payout (the closer for the auto-capture bypass a perfect
+          stealth-fraud transaction can otherwise ride straight through).
+        </p>
       </div>
 
       <div className="panel">

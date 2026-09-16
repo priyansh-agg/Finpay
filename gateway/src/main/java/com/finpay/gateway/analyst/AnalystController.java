@@ -107,6 +107,17 @@ public class AnalystController {
         return metrics.compute(policy.threshold(), from);
     }
 
+    /**
+     * Precision/recall/false-positive-rate against the hidden ground truth (interview sprint
+     * Day 10) — the whole pipeline's effectiveness, review-based rejection and settlement
+     * write-off (Day 9) alike, not just the Auto-Clear Engine. Optionally scoped to one
+     * simulation run.
+     */
+    @GetMapping("/metrics/fraud")
+    public AutoClearMetricsService.FraudMetrics fraudMetrics(@RequestParam(required = false) UUID runId) {
+        return metrics.computeFraudMetrics(runId);
+    }
+
     private ReviewView toView(AnalystReview r) {
         return new ReviewView(r.getId(), r.getPaymentId(), r.getQueueStatus().name(), r.getReviewerType(),
                 r.getDecision(), r.getReason(),
