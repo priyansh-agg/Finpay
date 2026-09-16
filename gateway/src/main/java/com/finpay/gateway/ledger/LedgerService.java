@@ -71,6 +71,25 @@ public class LedgerService {
         return tx.getId();
     }
 
+    /**
+     * Fraud write-off (Day 9 — settlement holdback): a captured payment's ground truth is
+     * confirmed fraudulent before it settles. Removes it from what the platform owes the
+     * merchant instead of ever paying it out — the merchant never sees stolen-card funds, and
+     * the platform (not the merchant) eats the loss, same as {@code postCapture}'s ledger
+     * created it: reversed at the account that received it.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public UUID postWriteOff(UUID paymentId, UUID merchantId, long amountMinor, String currency) {
+        LedgerAccount payable = merchantAccount("MERCHANT_PAYABLE", merchantId, currency);
+        LedgerAccount writeoff = platformAccount("FRAUD_WRITEOFF", currency);
+        LedgerTransaction tx = transactions.save(
+                new LedgerTransaction("FRAUD_WRITEOFF", "PAYMENT", paymentId, "confirmed fraud withheld from merchant payout"));
+        post(tx.getId(), payable.getId(), Direction.DEBIT, amountMinor, currency);
+        post(tx.getId(), writeoff.getId(), Direction.CREDIT, amountMinor, currency);
+        assertBalanced(tx.getId());
+        return tx.getId();
+    }
+
     /** Settlement: sweep a merchant's accrued payable balance into a payout. */
     @Transactional(propagation = Propagation.MANDATORY)
     public UUID postSettlement(UUID settlementId, UUID merchantId, long amountMinor, String currency) {

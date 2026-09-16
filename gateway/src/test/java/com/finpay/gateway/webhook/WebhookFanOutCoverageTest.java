@@ -1,5 +1,6 @@
 package com.finpay.gateway.webhook;
 
+import com.finpay.gateway.groundtruth.GroundTruthResolver;
 import com.finpay.gateway.order.Order;
 import com.finpay.gateway.payment.Payment;
 import com.finpay.gateway.refund.RefundService;
@@ -28,6 +29,7 @@ class WebhookFanOutCoverageTest extends AbstractIntegrationTest {
     @Autowired TestFixtures fixtures;
     @Autowired RefundService refunds;
     @Autowired SettlementService settlements;
+    @Autowired GroundTruthResolver groundTruthResolver;
     @Autowired WebhookEndpointRepository endpoints;
     @Autowired WebhookDispatcher dispatcher;
 
@@ -40,6 +42,9 @@ class WebhookFanOutCoverageTest extends AbstractIntegrationTest {
         Order other = fixtures.newOrder(merchantId, 9_000);
         fixtures.pay(merchantId, other.getId(), "CARD", "tok_declined");             // payment.failed
         refunds.refund(merchantId, captured.getId(), 10_000L, "partial", "rf-" + UUID.randomUUID()); // refund.succeeded
+        // Settlement holdback (Day 9): a capture isn't payable until its ground truth resolves.
+        jdbc.update("UPDATE fraud_ground_truth SET resolve_at = now() WHERE payment_id = ?", captured.getId());
+        groundTruthResolver.resolveDue();
         settlements.runBatch();                                                      // settlement.paid
 
         dispatcher.fanOut();

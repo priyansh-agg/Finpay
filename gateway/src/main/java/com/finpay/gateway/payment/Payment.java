@@ -80,6 +80,17 @@ public class Payment {
     @Column(name = "is_warmup", nullable = false)
     private boolean warmup = false;
 
+    /** Null until swept into a {@code Settlement} payout (V18 — settlement holdback, Day 9). */
+    @Column(name = "settled_at")
+    private Instant settledAt;
+
+    @Column(name = "settlement_id")
+    private UUID settlementId;
+
+    /** Confirmed fraud caught before settlement: withheld from the merchant, never settled. */
+    @Column(name = "written_off_at")
+    private Instant writtenOffAt;
+
     @Version
     private long version;
 

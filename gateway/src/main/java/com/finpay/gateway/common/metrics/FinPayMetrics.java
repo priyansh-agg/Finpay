@@ -47,4 +47,10 @@ public class FinPayMetrics {
     public void falseAutoClear() {
         reg.counter("finpay.autoclear.false_clears.total").increment();
     }
+
+    /** A captured payment's ground truth confirmed fraud before settlement — caught, not paid out. */
+    public void fraudWriteOff(long amountMinor) {
+        reg.counter("finpay.settlement.writeoffs.total").increment();
+        reg.counter("finpay.settlement.writeoffs.amount_minor").increment(amountMinor);
+    }
 }
