@@ -17,23 +17,30 @@ public class AutoClearMetricsService {
      * The Phase-3 headline metrics.
      *
      * @param flaggedTotal        payments that ever entered the review queue
+     * @param pendingHuman        reviews still PENDING right now — awaiting a human or, in a
+     *        demo, {@code SimulatedAnalystWorker}
      * @param decided             reviews that have been decided
      * @param autoCleared         decided by the Auto-Clear Engine (no human needed)
-     * @param referenceReviewed   decided by the reference analyst
+     * @param humanReviewed       decided by an actual human via {@code /reviews/{id}/decide}
+     *        (interview sprint Day 8) — the real baseline manualReviewReductionPct divides by
+     * @param simulatedAnalystReviewed  decided by the demo-only {@code SimulatedAnalystWorker};
+     *        reported for transparency but deliberately excluded from every "reviewed by an
+     *        analyst" count above, so it can never be mistaken for real review workload
      * @param autoClearRatePct    autoCleared / decided — a real, measured number
-     * @param manualReviewReductionPct  workload actually removed from a HUMAN reviewer,
-     *        i.e. {@code autoCleared / flaggedEligibleForAHuman}. There is currently no
-     *        recorded human baseline to divide by — the scheduler decides every review
-     *        itself (interview sprint Day 8 gives the queue a real human path) — so this is
-     *        {@code null} rather than a number. It used to silently equal
-     *        {@code autoClearRatePct}, which is a different question ("what fraction of
-     *        decided reviews were auto-cleared?") wearing this one's label.
+     * @param manualReviewReductionPct  workload actually removed from a HUMAN reviewer, i.e.
+     *        {@code autoCleared / (autoCleared + humanReviewed)}. {@code null} until at least
+     *        one review has actually been decided by a human — there is no real baseline to
+     *        divide by before that. It used to silently equal {@code autoClearRatePct} (a
+     *        different question — "what fraction of decided reviews were auto-cleared?" — the
+     *        scheduler decided every one of them itself, so there was no human path to reduce
+     *        volume from at all) wearing this one's label.
      * @param autoClearsResolved  auto-clears whose ground truth is now known
      * @param falseAutoClears     auto-clears later confirmed fraudulent (MUST be ~0)
      * @param falseAutoClearRatePct falseAutoClears / autoClearsResolved
      */
     public record Metrics(
-            long flaggedTotal, long decided, long autoCleared, long referenceReviewed,
+            long flaggedTotal, long pendingHuman, long decided, long autoCleared,
+            long humanReviewed, long simulatedAnalystReviewed,
             double autoClearRatePct, Double manualReviewReductionPct,
             long autoClearsResolved, long falseAutoClears, double falseAutoClearRatePct,
             double threshold) {}
@@ -49,10 +56,13 @@ public class AutoClearMetricsService {
         String rvGuard = since == null ? "" : " AND created_at >= '" + since + "'";
         String acGuard = since == null ? "" : " AND created_at >= '" + since + "'";
         long flaggedTotal = count("SELECT count(DISTINCT payment_id) FROM analyst_reviews WHERE 1=1" + rvGuard);
+        long pendingHuman = count("SELECT count(*) FROM analyst_reviews WHERE queue_status = 'PENDING'" + rvGuard);
         long decided = count("SELECT count(*) FROM analyst_reviews WHERE queue_status = 'DECIDED'" + rvGuard);
         long autoCleared = count("SELECT count(*) FROM autoclear_decisions WHERE auto_cleared = true" + acGuard);
-        long referenceReviewed = count(
-                "SELECT count(*) FROM analyst_reviews WHERE queue_status = 'DECIDED' AND reviewer_type = 'REFERENCE_ANALYST'" + rvGuard);
+        long humanReviewed = count(
+                "SELECT count(*) FROM analyst_reviews WHERE queue_status = 'DECIDED' AND reviewer_type = 'HUMAN'" + rvGuard);
+        long simulatedAnalystReviewed = count(
+                "SELECT count(*) FROM analyst_reviews WHERE queue_status = 'DECIDED' AND reviewer_type = 'SIMULATED_ANALYST'" + rvGuard);
         long autoClearsResolved = count(
                 "SELECT count(*) FROM autoclear_decisions WHERE auto_cleared = true AND later_confirmed_fraud IS NOT NULL" + acGuard);
         long falseAutoClears = count(
@@ -60,9 +70,12 @@ public class AutoClearMetricsService {
 
         double autoClearRate = decided == 0 ? 0 : 100.0 * autoCleared / decided;
         double falseRate = autoClearsResolved == 0 ? 0 : 100.0 * falseAutoClears / autoClearsResolved;
+        Double manualReviewReductionPct = humanReviewed == 0 ? null
+                : round(100.0 * autoCleared / (autoCleared + humanReviewed));
 
-        return new Metrics(flaggedTotal, decided, autoCleared, referenceReviewed,
-                round(autoClearRate), null,
+        return new Metrics(flaggedTotal, pendingHuman, decided, autoCleared,
+                humanReviewed, simulatedAnalystReviewed,
+                round(autoClearRate), manualReviewReductionPct,
                 autoClearsResolved, falseAutoClears, round(falseRate), threshold);
     }
 

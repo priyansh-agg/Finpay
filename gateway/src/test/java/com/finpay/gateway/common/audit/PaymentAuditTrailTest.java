@@ -3,6 +3,7 @@ package com.finpay.gateway.common.audit;
 import com.finpay.gateway.analyst.AnalystReview;
 import com.finpay.gateway.analyst.AnalystReviewRepository;
 import com.finpay.gateway.analyst.ReviewDecider;
+import com.finpay.gateway.analyst.SimulatedAnalystDecider;
 import com.finpay.gateway.order.Order;
 import com.finpay.gateway.payment.Payment;
 import com.finpay.gateway.payment.PaymentRepository;
@@ -34,6 +35,7 @@ class PaymentAuditTrailTest extends AbstractIntegrationTest {
     @Autowired AuditLogRepository audit;
     @Autowired AnalystReviewRepository reviews;
     @Autowired ReviewDecider decider;
+    @Autowired SimulatedAnalystDecider simulatedAnalyst;
     @Autowired TransactionTemplate tx;
 
     @Test
@@ -88,13 +90,17 @@ class PaymentAuditTrailTest extends AbstractIntegrationTest {
         }
 
         AnalystReview review = reviews.findFirstByPaymentIdOrderByCreatedAtDesc(p.getId()).orElseThrow();
-        decider.decide(review.getId());   // no ML sidecar in tests -> the reference analyst decides
+        decider.decide(review.getId());   // proposer only — no ML sidecar in tests, so it declines
+        assertThat(auditedActions(p.getId())).as("declining to auto-clear is not itself an audited event")
+                .doesNotContain("REVIEW_DECIDED");
+
+        simulatedAnalyst.decide(review.getId());   // the demo stand-in finishes what the proposer left
 
         List<AuditLog> trail = trailFor(p.getId());
         AuditLog decision = trail.get(trail.size() - 1);
         assertThat(decision.getAction()).isEqualTo("REVIEW_DECIDED");
         assertThat(decision.getActorType()).isEqualTo("SYSTEM");
-        assertThat(decision.getActorId()).isEqualTo("REFERENCE_ANALYST");
+        assertThat(decision.getActorId()).isEqualTo("SIMULATED_ANALYST");
         assertThat(decision.getAfterState()).containsKeys("decision", "reviewedBy", "reason", "resultingStatus");
     }
 

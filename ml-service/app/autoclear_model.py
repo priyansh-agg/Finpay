@@ -1,12 +1,12 @@
 """Auto-Clear Engine — the Phase-3 USP.
 
-A SEPARATE classifier from the fraud model. Its job: given a flagged transaction and the
-reference analyst's historical decision pattern, estimate P(analyst would CLEAR this).
+A SEPARATE classifier from the fraud model. Its job: given a flagged transaction and real (and
+demo-simulated) analysts' historical decision pattern, estimate P(analyst would CLEAR this).
 The gateway only auto-captures when this confidence exceeds a high threshold (default 0.97).
 
-Trained on SILVER LABELS (the reference analyst's own CLEAR/REJECT calls). The hidden
-`actually_fraudulent` ground truth is used ONLY to score the result afterwards, never as a
-training input — see app/db.py.
+Trained on SILVER LABELS (HUMAN and SIMULATED_ANALYST CLEAR/REJECT calls — never AUTO_CLEAR
+itself). The hidden `actually_fraudulent` ground truth is used ONLY to score the result
+afterwards, never as a training input — see app/db.py.
 
 Cold start / too little data => returns a low, conservative confidence so nothing is
 auto-cleared until the model has evidence.
@@ -22,7 +22,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from .db import fetch_reference_analyst_decisions
+from .db import fetch_analyst_decisions
 from .features import AUTOCLEAR_FEATURE_NAMES, to_autoclear_vector
 
 ARTIFACT = os.path.join(os.environ.get("ARTIFACT_DIR", "artifacts"), "autoclear_model.joblib")
@@ -43,7 +43,7 @@ class AutoClearModel:
 
     def train(self) -> dict:
         try:
-            rows = fetch_reference_analyst_decisions()
+            rows = fetch_analyst_decisions()
         except Exception as e:  # DB unreachable
             self.stats = {"trained": False, "reason": f"db error: {e}"}
             return self.stats

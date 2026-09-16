@@ -2,12 +2,14 @@ package com.finpay.gateway.analyst;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finpay.gateway.analyst.api.ReviewQueuePort;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
@@ -18,10 +20,13 @@ public class ReviewQueue implements ReviewQueuePort {
 
     private final AnalystReviewRepository reviews;
     private final ObjectMapper json;
+    private final long slaMinutes;
 
-    public ReviewQueue(AnalystReviewRepository reviews, ObjectMapper json) {
+    public ReviewQueue(AnalystReviewRepository reviews, ObjectMapper json,
+                       @Value("${finpay.analyst.review-sla-minutes:30}") long slaMinutes) {
         this.reviews = reviews;
         this.json = json;
+        this.slaMinutes = slaMinutes;
     }
 
     @Override
@@ -33,6 +38,7 @@ public class ReviewQueue implements ReviewQueuePort {
         r.setReason(reason);
         r.setRiskScoreAtReview(BigDecimal.valueOf(riskScore));
         r.setFeaturesAtReview(writeJson(featureSnapshot));
+        r.setSlaDueAt(Instant.now().plusSeconds(slaMinutes * 60));
         reviews.save(r);
     }
 

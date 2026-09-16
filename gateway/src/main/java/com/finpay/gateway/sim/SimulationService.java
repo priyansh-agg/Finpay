@@ -5,6 +5,7 @@ import com.finpay.gateway.analyst.AnalystReview;
 import com.finpay.gateway.analyst.AnalystReviewRepository;
 import com.finpay.gateway.analyst.AutoClearPolicy;
 import com.finpay.gateway.analyst.ReviewDecider;
+import com.finpay.gateway.analyst.SimulatedAnalystDecider;
 import com.finpay.gateway.common.error.ApiException;
 import com.finpay.gateway.groundtruth.FraudGroundTruthRepository;
 import com.finpay.gateway.groundtruth.GroundTruthLabel;
@@ -76,6 +77,7 @@ public class SimulationService {
     private final SimulationRunRepository runs;
     private final AnalystReviewRepository reviews;
     private final ReviewDecider reviewDecider;
+    private final SimulatedAnalystDecider simulatedAnalystDecider;
     private final FraudGroundTruthRepository groundTruth;
     private final GroundTruthResolver groundTruthResolver;
     private final AutoClearPolicy autoClearPolicy;
@@ -87,6 +89,7 @@ public class SimulationService {
     public SimulationService(MerchantRepository merchants, CustomerRepository customers, OrderService orders,
                              PaymentService payments, FeatureStore featureStore, SimulationRunRepository runs,
                              AnalystReviewRepository reviews, ReviewDecider reviewDecider,
+                             SimulatedAnalystDecider simulatedAnalystDecider,
                              FraudGroundTruthRepository groundTruth, GroundTruthResolver groundTruthResolver,
                              AutoClearPolicy autoClearPolicy, StringRedisTemplate redis,
                              JdbcTemplate jdbc, TransactionTemplate tx, ObjectMapper json) {
@@ -98,6 +101,7 @@ public class SimulationService {
         this.runs = runs;
         this.reviews = reviews;
         this.reviewDecider = reviewDecider;
+        this.simulatedAnalystDecider = simulatedAnalystDecider;
         this.groundTruth = groundTruth;
         this.groundTruthResolver = groundTruthResolver;
         this.autoClearPolicy = autoClearPolicy;
@@ -215,6 +219,13 @@ public class SimulationService {
      * shouldn't need to wait on either. Order matters: reviews must be decided (so their
      * {@code autoclear_decisions} rows exist) BEFORE ground truth resolves, because resolution
      * is what reconciles those rows against the now-known label.
+     *
+     * <p>Since interview sprint Day 8, {@link ReviewDecider} only PROPOSES auto-clear — a
+     * review it declines stays PENDING for a real human. A simulation run has none, so this
+     * hands anything still PENDING after the proposer to {@link SimulatedAnalystDecider}
+     * directly (bypassing its own latency and claim checks — resolving a run on demand isn't
+     * a demo of response time), the same demo-only path a live queue with nobody at the
+     * keyboard uses, so a run this method resolves is never left half-decided.
      */
     public SimSummary resolve(UUID runId) {
         SimulationRun row = runs.findById(runId).orElseThrow(() -> ApiException.notFound("Simulation run"));
@@ -223,7 +234,14 @@ public class SimulationService {
             try {
                 reviewDecider.decide(r.getId());
             } catch (Exception e) {
-                log.warn("could not decide review {} while resolving run {}: {}", r.getId(), runId, e.toString());
+                log.warn("could not propose auto-clear for review {} while resolving run {}: {}", r.getId(), runId, e.toString());
+            }
+        }
+        for (AnalystReview r : reviews.findByRunIdAndQueueStatus(runId, AnalystReview.QueueStatus.PENDING)) {
+            try {
+                simulatedAnalystDecider.decide(r.getId());
+            } catch (Exception e) {
+                log.warn("simulated analyst could not decide review {} while resolving run {}: {}", r.getId(), runId, e.toString());
             }
         }
         groundTruth.forceResolutionWindow(runId);

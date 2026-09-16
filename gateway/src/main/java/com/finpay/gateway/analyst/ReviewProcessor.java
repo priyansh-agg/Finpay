@@ -10,8 +10,11 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Drains the analyst review queue on a schedule. Each item is decided in its own
- * transaction by {@link ReviewDecider} so one failure can't stall the queue.
+ * Proposes auto-clear for every freshly queued review, on a schedule (interview sprint Day 8).
+ * Each item is evaluated in its own transaction by {@link ReviewDecider} so one failure can't
+ * stall the rest, and each is proposed exactly once ({@link AnalystReviewRepository#findUnproposed}).
+ * This never decides FOR a human — a review the proposer declines to auto-clear stays PENDING;
+ * see {@link SimulatedAnalystWorker} for who drains that queue in a demo.
  */
 @Component
 @Profile("!phase1")
@@ -29,7 +32,7 @@ public class ReviewProcessor {
 
     @Scheduled(fixedDelayString = "${finpay.autoclear.poll-ms:4000}")
     public void drain() {
-        List<AnalystReview> pending = reviews.findQueue(AnalystReview.QueueStatus.PENDING, PageRequest.of(0, 50));
+        List<AnalystReview> pending = reviews.findUnproposed(AnalystReview.QueueStatus.PENDING, PageRequest.of(0, 50));
         for (AnalystReview r : pending) {
             try {
                 decider.decide(r.getId());

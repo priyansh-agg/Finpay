@@ -35,7 +35,7 @@ public class AnalystReview {
     @Column(name = "queue_status", nullable = false)
     private QueueStatus queueStatus = QueueStatus.PENDING;
 
-    /** REFERENCE_ANALYST | HUMAN | AUTO_CLEAR */
+    /** HUMAN | SIMULATED_ANALYST | AUTO_CLEAR — who made the terminal decision. */
     @Column(name = "reviewer_type")
     private String reviewerType;
 
@@ -56,4 +56,14 @@ public class AnalystReview {
 
     @Column(name = "decided_at")
     private Instant decidedAt;
+
+    /** Caller id once claimed — a real analyst's subject id, or the simulated-analyst bot's. */
+    @Column(name = "assigned_to")
+    private String assignedTo;
+
+    @Column(name = "claimed_at")
+    private Instant claimedAt;
+
+    @Column(name = "sla_due_at")
+    private Instant slaDueAt;
 }

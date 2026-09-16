@@ -105,6 +105,15 @@ finpay:
     threshold: 0.80
     poll-ms: 4000
     calibrate-ms: 15000
+  analyst:
+    # How long a claimed-but-undecided review has before it's overdue (dashboard urgency only).
+    review-sla-minutes: 30
+  simulated-analyst:
+    # Demo-only stand-in for a human, so the review queue drains with nobody at the keyboard.
+    # Never counted as a human reviewer — see AutoClearMetricsService.
+    poll-ms: 6000
+    latency-seconds: 20
+    accuracy: 1.0
 
 logging:
   level:

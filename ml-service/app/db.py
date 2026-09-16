@@ -1,7 +1,7 @@
 """Thin Postgres access for the ML service. Reads the same DB the gateway writes.
 
-Only used for training the Auto-Clear model on the reference analyst's decisions and for
-the Kaggle-model status endpoints. The gateway never depends on this service being up.
+Only used for training the Auto-Clear model on real (and demo-simulated) analyst decisions and
+for the Kaggle-model status endpoints. The gateway never depends on this service being up.
 """
 from __future__ import annotations
 
@@ -14,17 +14,19 @@ import psycopg
 DB_URL = os.environ.get("FINPAY_DB_URL", "postgresql://finpay:finpay@localhost:5432/finpay")
 
 
-def fetch_reference_analyst_decisions() -> list[tuple[dict[str, Any], int]]:
-    """Returns (feature_snapshot, cleared) rows from the reference analyst's history.
+def fetch_analyst_decisions() -> list[tuple[dict[str, Any], int]]:
+    """Returns (feature_snapshot, cleared) rows from real (and demo-simulated) analyst history.
 
     `cleared` = 1 when the analyst CLEARED the transaction, 0 when REJECTED. These are the
-    SILVER LABELS for the Auto-Clear model. The hidden `actually_fraudulent` column is
-    deliberately NOT selected here — training on it would be data leakage.
+    SILVER LABELS for the Auto-Clear model, sourced from HUMAN and SIMULATED_ANALYST review
+    decisions only — never AUTO_CLEAR, which would be a feedback loop (training the model on
+    its own prior predictions). The hidden `actually_fraudulent` column is deliberately NOT
+    selected here — training on it would be data leakage.
     """
     q = """
         SELECT r.features_at_review, r.risk_score_at_review, r.decision
         FROM analyst_reviews r
-        WHERE r.reviewer_type = 'REFERENCE_ANALYST'
+        WHERE r.reviewer_type IN ('HUMAN', 'SIMULATED_ANALYST')
           AND r.decision IN ('CLEAR', 'REJECT')
     """
     out: list[tuple[dict[str, Any], int]] = []

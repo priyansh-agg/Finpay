@@ -231,8 +231,9 @@ public class PaymentService {
     /**
      * Used by the analyst module to complete a HELD/PENDING_REVIEW payment.
      *
-     * @param actor who decided: {@code "AUTO_CLEAR"}, {@code "REFERENCE_ANALYST"} (both
-     *              algorithmic) or {@code "HUMAN"} (a dashboard user). Every call is one
+     * @param actor who decided: {@code "AUTO_CLEAR"} (the proposer), {@code "SIMULATED_ANALYST"}
+     *              (the demo-only stand-in) — both algorithmic — or {@code "HUMAN"} (a
+     *              dashboard user). Every call is one
      *              review decision and is audited as one, whatever it resolves to — including
      *              the case below where a review-cleared payment is still declined by the
      *              (re-run) processor.

@@ -53,6 +53,10 @@ finpay:
     poll-interval-ms: 300
     max-attempts: 3
     backoff-base-ms: 150
+  simulated-analyst:
+    # No latency floor in tests, so SimulatedAnalystWorker.drain() can be called directly
+    # right after flagging a review instead of sleeping out the demo's 20s response-time knob.
+    latency-seconds: 0
 
 logging:
   level:

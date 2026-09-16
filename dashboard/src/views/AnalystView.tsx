@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 
 type Metrics = {
-  flaggedTotal: number; decided: number; autoCleared: number; referenceReviewed: number;
+  flaggedTotal: number; pendingHuman: number; decided: number; autoCleared: number;
+  humanReviewed: number; simulatedAnalystReviewed: number;
   autoClearRatePct: number; manualReviewReductionPct: number | null;
   autoClearsResolved: number; falseAutoClears: number; falseAutoClearRatePct: number; threshold: number;
 };
@@ -10,6 +11,7 @@ type Review = {
   id: string; paymentId: string; queueStatus: string; reviewerType: string | null;
   decision: string | null; reason: string | null; riskScore: number | null;
   features: any; createdAt: string; decidedAt: string | null;
+  assignedTo: string | null; claimedAt: string | null;
 };
 
 export function AnalystView() {
@@ -36,6 +38,10 @@ export function AnalystView() {
     return () => clearInterval(t);
   }, [refresh]);
 
+  async function claim(id: string) {
+    try { await api(`/v1/analyst/reviews/${id}/claim`, { method: "POST" }); refresh(); }
+    catch (e: any) { setErr(e.message); }
+  }
   async function decide(id: string, decision: "CLEAR" | "REJECT") {
     await api(`/v1/analyst/reviews/${id}/decide`, { method: "POST", body: { decision, reason: "manual" } });
     refresh();
@@ -59,7 +65,9 @@ export function AnalystView() {
           <div className="grid">
             <Stat n={metrics.flaggedTotal} l="transactions flagged for review" />
             <Stat n={metrics.autoCleared} l="auto-cleared (no human)" good />
-            <Stat n={metrics.referenceReviewed} l="sent to an analyst" />
+            <Stat n={metrics.pendingHuman} l="pending — awaiting a human" />
+            <Stat n={metrics.humanReviewed} l="reviewed by a human" />
+            <Stat n={metrics.simulatedAnalystReviewed} l="reviewed by the demo bot (not a human)" />
             <Stat
               n={metrics.manualReviewReductionPct == null ? "—" : `${metrics.manualReviewReductionPct}%`}
               l="manual review volume removed"
@@ -80,8 +88,8 @@ export function AnalystView() {
         </p>
         {metrics?.manualReviewReductionPct == null && (
           <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-            &ldquo;Manual review volume removed&rdquo; needs a real human-reviewed baseline to divide by, which the
-            review queue doesn&rsquo;t have yet — every review is currently decided automatically.
+            &ldquo;Manual review volume removed&rdquo; needs a real human-reviewed baseline to divide by — decide at
+            least one review below (not just via the demo bot) to make this a real number.
           </p>
         )}
       </div>
@@ -113,7 +121,7 @@ export function AnalystView() {
         {err && <div className="err">{err}</div>}
         <table>
           <thead>
-            <tr><th>payment</th><th>risk</th><th>reason</th><th>decided by</th><th>outcome</th><th></th></tr>
+            <tr><th>payment</th><th>risk</th><th>reason</th><th>claimed by</th><th>decided by</th><th>outcome</th><th></th></tr>
           </thead>
           <tbody>
             {queue.map((r) => (
@@ -121,11 +129,13 @@ export function AnalystView() {
                 <td className="mono">{r.paymentId.slice(0, 8)}</td>
                 <td>{r.riskScore?.toFixed(1) ?? "-"}</td>
                 <td className="muted" style={{ maxWidth: 320 }}>{r.reason}</td>
+                <td className="mono">{r.assignedTo ?? "-"}</td>
                 <td>{r.reviewerType ? <span className={`pill ${r.reviewerType}`}>{r.reviewerType}</span> : "-"}</td>
                 <td>{r.decision ? <span className={`pill ${r.decision}`}>{r.decision}</span> : "-"}</td>
                 <td style={{ whiteSpace: "nowrap" }}>
                   {r.queueStatus === "PENDING" ? (
                     <>
+                      {!r.assignedTo && <button className="ghost small" onClick={() => claim(r.id)}>claim</button>}{" "}
                       <button className="ghost small" onClick={() => decide(r.id, "CLEAR")}>clear</button>{" "}
                       <button className="ghost small" onClick={() => decide(r.id, "REJECT")}>reject</button>{" "}
                     </>
