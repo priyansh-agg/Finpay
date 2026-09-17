@@ -99,7 +99,7 @@ export function PaymentsView() {
           {result?.items.map((p) => (
             <tr key={p.id}>
               <td className="mono">
-                <Link to={`/payments/${p.id}`} state={p}>{p.id.slice(0, 8)}</Link>
+                <Link to={`/payments/${p.id}`}>{p.id.slice(0, 8)}</Link>
               </td>
               <td><span className={`pill ${p.status}`}>{p.status}</span></td>
               <td>{p.riskBucket ? <span className={`pill ${p.riskBucket}`}>{p.riskBucket}</span> : "-"}</td>

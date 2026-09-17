@@ -11,6 +11,8 @@ public interface AutoClearDecisionRepository extends JpaRepository<AutoClearDeci
 
     List<AutoClearDecision> findByPaymentId(UUID paymentId);
 
+    List<AutoClearDecision> findByPaymentIdOrderByCreatedAtDesc(UUID paymentId);
+
     long countByAutoClearedTrue();
 
     long countByAutoClearedTrueAndLaterConfirmedFraudTrue();

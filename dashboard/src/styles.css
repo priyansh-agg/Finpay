@@ -88,3 +88,13 @@ button.small { padding: 4px 9px; font-size: 12px; }
 .kv .k { color: var(--muted); }
 details.explain { margin-top: 8px; }
 details.explain summary { cursor: pointer; color: var(--accent); }
+
+/* In-page facet tabs (Payment Detail view, interview sprint Day 12) — distinct from the rail
+   nav: these switch content within one panel, not between resources. */
+.subtabs { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.subtabs button {
+  background: transparent; border: none; color: var(--muted); cursor: pointer;
+  padding: 8px 12px; font-size: 13px; border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.subtabs button:hover { color: var(--text); }
+.subtabs button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }

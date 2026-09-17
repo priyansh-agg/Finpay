@@ -114,4 +114,10 @@ public class RefundService {
         payments.findByIdAndMerchantId(paymentId, merchantId).orElseThrow(() -> ApiException.notFound("Payment"));
         return refunds.findByPaymentId(paymentId);
     }
+
+    /** For a RISK_ANALYST/SUPER_ADMIN caller — the controller has already authorized them. */
+    @Transactional(readOnly = true)
+    public java.util.List<Refund> forPaymentUnscoped(UUID paymentId) {
+        return refunds.findByPaymentId(paymentId);
+    }
 }

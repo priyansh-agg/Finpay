@@ -10,6 +10,8 @@ public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, UUID> 
 
     List<LedgerEntry> findByLedgerTxId(UUID ledgerTxId);
 
+    List<LedgerEntry> findByLedgerTxIdIn(java.util.Collection<UUID> ledgerTxIds);
+
     List<LedgerEntry> findByAccountId(UUID accountId);
 
     /** Per-transaction balance check: returns tx ids where debits != credits (should be empty). */

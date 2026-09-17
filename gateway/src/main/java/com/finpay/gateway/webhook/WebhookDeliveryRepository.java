@@ -27,4 +27,6 @@ public interface WebhookDeliveryRepository extends JpaRepository<WebhookDelivery
     }
 
     List<WebhookDelivery> findByOutboxEventId(UUID outboxEventId);
+
+    List<WebhookDelivery> findByOutboxEventIdIn(java.util.Collection<UUID> outboxEventIds);
 }
