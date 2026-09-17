@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { api, auth } from "../api";
 
-export function MerchantView() {
+/**
+ * Dev/testing tools: sandbox credentials, a hosted-checkout link generator, and a
+ * server-to-server "direct pay" form. Split out from the old MerchantView (interview sprint
+ * Day 11) — its "Transactions" table is now the real Payments spine at /payments; this is what
+ * remains, purely for exercising the API while building or demoing.
+ */
+export function SandboxView() {
   const [apiKey, setApiKey] = useState(auth.apiKey ?? "");
   const [log, setLog] = useState<any[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -10,12 +16,9 @@ export function MerchantView() {
   const [link, setLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // "direct pay" (server-to-server) form — kept for API testing
   const [payOrderId, setPayOrderId] = useState("");
   const [token, setToken] = useState("tok_valid");
   const [device, setDevice] = useState("dev-web-1");
-
-  const [txns, setTxns] = useState<any[]>([]);
 
   function saveKey() { auth.apiKey = apiKey || null; push({ note: "API key saved locally" }); }
   function push(x: any) { setLog((l) => [{ t: new Date().toLocaleTimeString(), ...x }, ...l].slice(0, 40)); }
@@ -75,14 +78,6 @@ export function MerchantView() {
     } catch (e: any) { setErr(e.message); }
   }
 
-  async function refreshTransactions() {
-    setErr(null);
-    try {
-      const r = await api<{ items: any[] }>("/v1/transactions?size=15", { asMerchant: true });
-      setTxns(r.items);
-    } catch (e: any) { setErr(e.message); }
-  }
-
   return (
     <>
       <div className="panel">
@@ -119,29 +114,6 @@ export function MerchantView() {
           </div>
         )}
         {err && <div className="err">{err}</div>}
-      </div>
-
-      <div className="panel">
-        <h2>Transactions</h2>
-        <div className="row" style={{ marginBottom: 10 }}>
-          <button className="ghost" onClick={refreshTransactions}>Refresh</button>
-          <span className="muted">Pulls GET /v1/transactions — shows payments made through any checkout link too.</span>
-        </div>
-        <table>
-          <thead><tr><th>payment</th><th>status</th><th>risk</th><th>amount</th><th>created</th></tr></thead>
-          <tbody>
-            {txns.map((t) => (
-              <tr key={t.id}>
-                <td className="mono">{t.id.slice(0, 8)}</td>
-                <td><span className={`pill ${t.status}`}>{t.status}</span></td>
-                <td>{t.riskBucket ? <span className={`pill ${t.riskBucket}`}>{t.riskBucket}</span> : "-"}</td>
-                <td>{(t.amountMinor / 100).toFixed(2)} {t.currency}</td>
-                <td className="muted">{new Date(t.createdAt).toLocaleTimeString()}</td>
-              </tr>
-            ))}
-            {txns.length === 0 && <tr><td colSpan={5} className="muted">click Refresh to load</td></tr>}
-          </tbody>
-        </table>
       </div>
 
       <div className="panel">

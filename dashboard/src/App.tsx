@@ -1,17 +1,38 @@
 import { useState } from "react";
+import { BrowserRouter, Routes, Route, Navigate, NavLink } from "react-router-dom";
 import { auth, login } from "./api";
 import { AnalystView } from "./views/AnalystView";
-import { MerchantView } from "./views/MerchantView";
+import { PaymentsView } from "./views/PaymentsView";
+import { PaymentDetailView } from "./views/PaymentDetailView";
+import { SandboxView } from "./views/SandboxView";
+import { ComingSoonView } from "./views/ComingSoonView";
 
 export function App() {
   const [role, setRole] = useState<string | null>(auth.role);
-  const [tab, setTab] = useState<"analyst" | "merchant">(
-    auth.role === "RISK_ANALYST" || auth.role === "SUPER_ADMIN" ? "analyst" : "merchant"
+
+  if (!role) return <Login onDone={setRole} />;
+
+  return (
+    <BrowserRouter>
+      <Shell role={role} onSignOut={() => { auth.clear(); setRole(null); }} />
+    </BrowserRouter>
   );
+}
 
-  if (!role) return <Login onDone={(r) => { setRole(r); setTab(r === "MERCHANT_ADMIN" ? "merchant" : "analyst"); }} />;
+const MERCHANT_STUBS = ["Orders", "Refunds", "Settlements", "Customers"];
 
+/**
+ * The navigation shell (interview sprint Day 11). Replaces the two-button flat tab bar with a
+ * left rail that mirrors the resource model — Payments, Orders, Refunds, Settlements,
+ * Customers, Risk — so the product's domain is legible before you click anything (the audit's
+ * §G.2 recommendation). Every item is a real route, even the ones this phase hasn't built out:
+ * a resource the object model names is addressable and says so honestly, rather than a greyed
+ * label that gives no feedback on click.
+ */
+function Shell({ role, onSignOut }: { role: string; onSignOut: () => void }) {
   const canAnalyst = role === "RISK_ANALYST" || role === "SUPER_ADMIN";
+  const canMerchant = role === "MERCHANT" || role === "MERCHANT_ADMIN" || role === "SUPER_ADMIN";
+
   return (
     <>
       <header className="bar">
@@ -19,22 +40,50 @@ export function App() {
           <h1>FinPay Console</h1>
           <span className="role">{role}</span>
         </div>
-        <button className="ghost" onClick={() => { auth.clear(); setRole(null); }}>Sign out</button>
+        <button className="ghost" onClick={onSignOut}>Sign out</button>
       </header>
       <div className="app">
-        <nav className="tabs">
-          {canAnalyst && (
-            <button className={tab === "analyst" ? "active" : ""} onClick={() => setTab("analyst")}>
-              Risk / Auto-Clear
-            </button>
+        <nav className="rail">
+          {canMerchant && (
+            <>
+              <div className="section">Merchant</div>
+              <RailLink to="/payments">Payments</RailLink>
+              {MERCHANT_STUBS.map((label) => (
+                <RailLink key={label} to={`/${label.toLowerCase()}`}>{label}</RailLink>
+              ))}
+              <RailLink to="/sandbox">Sandbox</RailLink>
+            </>
           )}
-          <button className={tab === "merchant" ? "active" : ""} onClick={() => setTab("merchant")}>
-            Merchant sandbox
-          </button>
+          {canAnalyst && (
+            <>
+              <div className="section">Fraud</div>
+              <RailLink to="/risk">Risk / Auto-Clear</RailLink>
+            </>
+          )}
         </nav>
-        {tab === "analyst" && canAnalyst ? <AnalystView /> : <MerchantView />}
+        <main className="main">
+          <Routes>
+            <Route path="/payments" element={canMerchant ? <PaymentsView /> : <Navigate to="/risk" replace />} />
+            <Route path="/payments/:id" element={canMerchant ? <PaymentDetailView /> : <Navigate to="/risk" replace />} />
+            {MERCHANT_STUBS.map((label) => (
+              <Route key={label} path={`/${label.toLowerCase()}`}
+                     element={canMerchant ? <ComingSoonView label={label} /> : <Navigate to="/risk" replace />} />
+            ))}
+            <Route path="/sandbox" element={canMerchant ? <SandboxView /> : <Navigate to="/risk" replace />} />
+            <Route path="/risk" element={canAnalyst ? <AnalystView /> : <Navigate to="/payments" replace />} />
+            <Route path="*" element={<Navigate to={canMerchant ? "/payments" : "/risk"} replace />} />
+          </Routes>
+        </main>
       </div>
     </>
+  );
+}
+
+function RailLink({ to, children }: { to: string; children: React.ReactNode }) {
+  return (
+    <NavLink to={to} className={({ isActive }) => (isActive ? "active" : "")}>
+      {children}
+    </NavLink>
   );
 }
 
