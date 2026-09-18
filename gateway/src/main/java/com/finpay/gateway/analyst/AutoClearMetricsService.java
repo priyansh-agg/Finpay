@@ -49,26 +49,42 @@ public class AutoClearMetricsService {
 
     @Transactional(readOnly = true)
     public Metrics compute(double threshold) {
-        return compute(threshold, null);
+        return compute(threshold, null, null);
     }
 
     /** @param since if non-null, only count reviews/decisions created at or after this instant. */
     @Transactional(readOnly = true)
     public Metrics compute(double threshold, java.time.Instant since) {
-        String rvGuard = since == null ? "" : " AND created_at >= '" + since + "'";
-        String acGuard = since == null ? "" : " AND created_at >= '" + since + "'";
+        return compute(threshold, since, null);
+    }
+
+    /**
+     * @param since if non-null, only count reviews/decisions created at or after this instant
+     * @param runId if non-null, only count reviews/decisions for payments from this simulation
+     *        run (interview sprint Day 13 — the audit's §G.6 "add a run selector"). Composable
+     *        with {@code since}, though the dashboard only ever uses one at a time in practice.
+     *        {@code analyst_reviews} carries its own {@code run_id} (Day 6); {@code
+     *        autoclear_decisions} doesn't, so those two queries join to {@code payments} for it.
+     */
+    @Transactional(readOnly = true)
+    public Metrics compute(double threshold, java.time.Instant since, UUID runId) {
+        String rvGuard = (since == null ? "" : " AND created_at >= '" + since + "'")
+                + (runId == null ? "" : " AND run_id = '" + runId + "'");
+        String acGuard = (since == null ? "" : " AND created_at >= '" + since + "'");
+        String acRunJoin = runId == null ? ""
+                : " AND payment_id IN (SELECT id FROM payments WHERE run_id = '" + runId + "')";
         long flaggedTotal = count("SELECT count(DISTINCT payment_id) FROM analyst_reviews WHERE 1=1" + rvGuard);
         long pendingHuman = count("SELECT count(*) FROM analyst_reviews WHERE queue_status = 'PENDING'" + rvGuard);
         long decided = count("SELECT count(*) FROM analyst_reviews WHERE queue_status = 'DECIDED'" + rvGuard);
-        long autoCleared = count("SELECT count(*) FROM autoclear_decisions WHERE auto_cleared = true" + acGuard);
+        long autoCleared = count("SELECT count(*) FROM autoclear_decisions WHERE auto_cleared = true" + acGuard + acRunJoin);
         long humanReviewed = count(
                 "SELECT count(*) FROM analyst_reviews WHERE queue_status = 'DECIDED' AND reviewer_type = 'HUMAN'" + rvGuard);
         long simulatedAnalystReviewed = count(
                 "SELECT count(*) FROM analyst_reviews WHERE queue_status = 'DECIDED' AND reviewer_type = 'SIMULATED_ANALYST'" + rvGuard);
         long autoClearsResolved = count(
-                "SELECT count(*) FROM autoclear_decisions WHERE auto_cleared = true AND later_confirmed_fraud IS NOT NULL" + acGuard);
+                "SELECT count(*) FROM autoclear_decisions WHERE auto_cleared = true AND later_confirmed_fraud IS NOT NULL" + acGuard + acRunJoin);
         long falseAutoClears = count(
-                "SELECT count(*) FROM autoclear_decisions WHERE auto_cleared = true AND later_confirmed_fraud = true" + acGuard);
+                "SELECT count(*) FROM autoclear_decisions WHERE auto_cleared = true AND later_confirmed_fraud = true" + acGuard + acRunJoin);
 
         double autoClearRate = decided == 0 ? 0 : 100.0 * autoCleared / decided;
         double falseRate = autoClearsResolved == 0 ? 0 : 100.0 * falseAutoClears / autoClearsResolved;

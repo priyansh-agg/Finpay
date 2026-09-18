@@ -20,6 +20,13 @@ type Review = {
   features: any; createdAt: string; decidedAt: string | null;
   assignedTo: string | null; claimedAt: string | null;
 };
+type SimSummary = {
+  runId: string; merchantId: string; seed: number;
+  requestedDraws: number; requestedFraudRate: number;
+  populationPayments: number; warmupPayments: number; legit: number; fraud: number;
+  bucketCounts: Record<string, number>; statusCounts: Record<string, number>;
+};
+type BatchResult = { batchId: string; merchantCount: number; totalMinor: number; writtenOffCount: number; writtenOffMinor: number };
 
 export function AnalystView() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
@@ -28,18 +35,34 @@ export function AnalystView() {
   const [status, setStatus] = useState<"PENDING" | "DECIDED">("PENDING");
   const [err, setErr] = useState<string | null>(null);
   const [explains, setExplains] = useState<Record<string, any>>({});
-  const [simCount, setSimCount] = useState(300);
+
+  // Scenario controls (interview sprint Day 13) — every knob SimulationScenario actually
+  // supports, not just a transaction count. Rates are edited as whole percentages.
+  const [count, setCount] = useState(300);
+  const [fraudRatePct, setFraudRatePct] = useState(12);
+  const [stealthRatePct, setStealthRatePct] = useState(0);
+  const [fraudShapedLegitRatePct, setFraudShapedLegitRatePct] = useState(0);
+  const [seed, setSeed] = useState("");
+  const [simBusy, setSimBusy] = useState(false);
+
+  // The lifecycle of the last run this tab started: run -> resolve -> settle. Nothing here
+  // persists across a reload — it's a demo aid, not a record; SimulationRun rows are the record.
+  const [lastRun, setLastRun] = useState<SimSummary | null>(null);
+  const [lastBatch, setLastBatch] = useState<BatchResult | null>(null);
+  const [scope, setScope] = useState<"all" | "run">("all");
+
+  const runIdQuery = scope === "run" && lastRun ? `?${new URLSearchParams({ runId: lastRun.runId })}` : "";
 
   const refresh = useCallback(async () => {
     try {
       const [m, fm, q] = await Promise.all([
-        api<Metrics>("/v1/analyst/metrics/autoclear"),
-        api<FraudMetrics>("/v1/analyst/metrics/fraud"),
+        api<Metrics>(`/v1/analyst/metrics/autoclear${runIdQuery}`),
+        api<FraudMetrics>(`/v1/analyst/metrics/fraud${runIdQuery}`),
         api<Review[]>(`/v1/analyst/reviews?status=${status}&limit=60`),
       ]);
       setMetrics(m); setFraudMetrics(fm); setQueue(q); setErr(null);
     } catch (e: any) { setErr(e.message); }
-  }, [status]);
+  }, [status, runIdQuery]);
 
   useEffect(() => {
     refresh();
@@ -59,15 +82,75 @@ export function AnalystView() {
     const e = await api(`/v1/risk/${paymentId}/explain`);
     setExplains((s) => ({ ...s, [paymentId]: e }));
   }
+
   async function runSim() {
     setErr(null);
-    try { await api("/v1/admin/simulate", { method: "POST", body: { count: simCount, fraudRate: 0.12 } }); }
+    setSimBusy(true);
+    setLastBatch(null);
+    try {
+      const summary = await api<SimSummary>("/v1/admin/simulate", {
+        method: "POST",
+        body: {
+          count,
+          fraudRate: fraudRatePct / 100,
+          stealthRate: stealthRatePct / 100,
+          fraudShapedLegitRate: fraudShapedLegitRatePct / 100,
+          seed: seed.trim() === "" ? undefined : Number(seed),
+        },
+      });
+      setLastRun(summary);
+      setScope("run");
+    } catch (e: any) { setErr(e.message); }
+    setSimBusy(false);
+    setTimeout(refresh, 1000);
+  }
+
+  async function resolveRun() {
+    if (!lastRun) return;
+    setErr(null);
+    setSimBusy(true);
+    try {
+      const summary = await api<SimSummary>(`/v1/admin/simulate/${lastRun.runId}/resolve`, { method: "POST" });
+      setLastRun(summary);
+    } catch (e: any) { setErr(e.message); }
+    setSimBusy(false);
+    refresh();
+  }
+
+  async function runSettlement() {
+    setErr(null);
+    setSimBusy(true);
+    try {
+      const batch = await api<BatchResult>("/v1/settlements/run", { method: "POST" });
+      setLastBatch(batch);
+    } catch (e: any) { setErr(e.message); }
+    setSimBusy(false);
+    refresh();
+  }
+
+  async function resetSim() {
+    setErr(null);
+    try { await api("/v1/admin/simulate/reset", { method: "POST" }); }
     catch (e: any) { setErr(e.message); }
-    setTimeout(refresh, 1500);
+    refresh();
   }
 
   return (
     <>
+      {lastRun && (
+        <div className="panel" style={{ paddingBottom: 12 }}>
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <span className="muted" style={{ fontSize: 12 }}>
+              Metrics below scoped to: run <span className="mono">{lastRun.runId.slice(0, 8)}</span> (seed {lastRun.seed})
+            </span>
+            <div className="row" style={{ gap: 6 }}>
+              <button className={scope === "all" ? "primary small" : "ghost small"} onClick={() => setScope("all")}>all time</button>
+              <button className={scope === "run" ? "primary small" : "ghost small"} onClick={() => setScope("run")}>this run only</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="panel">
         <h2>Auto-Clear Engine — impact</h2>
         {metrics && (
@@ -143,13 +226,62 @@ export function AnalystView() {
       <div className="panel">
         <h2>Generate traffic (SUPER_ADMIN)</h2>
         <div className="row">
-          <div className="field" style={{ width: 140 }}>
+          <div className="field" style={{ width: 120 }}>
             <label>transactions</label>
-            <input type="number" value={simCount} onChange={(e) => setSimCount(+e.target.value)} />
+            <input type="number" value={count} onChange={(e) => setCount(+e.target.value)} />
           </div>
-          <button className="primary" onClick={runSim}>Run simulation</button>
-          <span className="muted">12% fraud, injected as realistic patterns.</span>
+          <div className="field" style={{ width: 110 }}>
+            <label>fraud %</label>
+            <input type="number" min={0} max={100} value={fraudRatePct} onChange={(e) => setFraudRatePct(+e.target.value)} />
+          </div>
+          <div className="field" style={{ width: 110 }}>
+            <label>stealth %</label>
+            <input type="number" min={0} max={100} value={stealthRatePct} onChange={(e) => setStealthRatePct(+e.target.value)} />
+          </div>
+          <div className="field" style={{ width: 150 }}>
+            <label>fraud-shaped-legit %</label>
+            <input type="number" min={0} max={100} value={fraudShapedLegitRatePct}
+                   onChange={(e) => setFraudShapedLegitRatePct(+e.target.value)} />
+          </div>
+          <div className="field" style={{ width: 120 }}>
+            <label>seed (optional)</label>
+            <input value={seed} onChange={(e) => setSeed(e.target.value)} placeholder="random" />
+          </div>
+          <button className="primary" onClick={runSim} disabled={simBusy}>Run simulation</button>
+          <button className="ghost" onClick={resetSim} disabled={simBusy}>Reset threshold + Redis</button>
         </div>
+        <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+          <strong>stealth</strong>: fraud with no rule signal — the only population "zero false auto-clears" means
+          anything over. <strong>fraud-shaped-legit</strong>: genuine customers who trip a rule anyway — what
+          "review reduction" and the false-positive rate above are actually about. Same seed + same rates ⇒ same
+          numbers, once threshold/Redis are reset.
+        </p>
+
+        {lastRun && (
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+            <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
+              <span>
+                Run <span className="mono">{lastRun.runId.slice(0, 8)}</span> — {lastRun.populationPayments} population
+                + {lastRun.warmupPayments} warm-up ({lastRun.legit} legit / {lastRun.fraud} fraud drawn)
+              </span>
+              <div className="row" style={{ gap: 6 }}>
+                <button className="ghost small" onClick={resolveRun} disabled={simBusy}>Resolve now</button>
+                <button className="ghost small" onClick={runSettlement} disabled={simBusy}>Run settlement batch</button>
+              </div>
+            </div>
+            <div className="muted" style={{ fontSize: 12 }}>
+              statuses: {Object.entries(lastRun.statusCounts).map(([k, v]) => `${k} ${v}`).join(", ") || "—"}
+            </div>
+            {lastBatch && (
+              <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                Settlement batch: {lastBatch.merchantCount} merchant(s) paid ₹{(lastBatch.totalMinor / 100).toLocaleString()};{" "}
+                <strong>
+                  {lastBatch.writtenOffCount} confirmed-fraud payment(s) written off (₹{(lastBatch.writtenOffMinor / 100).toLocaleString()})
+                </strong> before they could pay out.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="panel">

@@ -101,10 +101,11 @@ public class AnalystController {
 
     @GetMapping("/metrics/autoclear")
     public AutoClearMetricsService.Metrics autoClearMetrics(
-            @RequestParam(required = false) String since) {
+            @RequestParam(required = false) String since,
+            @RequestParam(required = false) UUID runId) {
         java.time.Instant from = since == null ? null
                 : java.time.OffsetDateTime.parse(since.replace(' ', '+')).toInstant();
-        return metrics.compute(policy.threshold(), from);
+        return metrics.compute(policy.threshold(), from, runId);
     }
 
     /**
