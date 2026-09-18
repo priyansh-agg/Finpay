@@ -56,26 +56,42 @@ hr "7. Partial refund of the captured payment from step 4 -> double-entry revers
 curl -s -X POST "$B/v1/payments/$P4ID/refund" -H "X-API-Key: $KEY" -H 'Idempotency-Key: rf-1' \
   -H 'Content-Type: application/json' -d '{"amountMinor":15000,"reason":"partial"}' | j '["status"]'
 
-hr "8. Fraud detection: generate realistic traffic (needs the ML sidecar)"
-if curl -sf http://localhost:9000/health >/dev/null 2>&1; then
-  for s in 1 2 3; do
-    curl -s -X POST $B/v1/admin/simulate -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' \
-      -d "{\"count\":300,\"fraudRate\":0.12,\"seed\":$s}" | \
-      python3 -c 'import sys,json;d=json.load(sys.stdin);print(" batch:",d["bucketCounts"])'
-    sleep 18
-    curl -s -X POST http://localhost:9000/autoclear/train >/dev/null
-  done
-  sleep 25
-  hr "9. The USP — auto-clear impact (analyst view)"
-  curl -s $B/v1/analyst/metrics/autoclear -H "Authorization: Bearer $ADMIN" | python3 -m json.tool
-  hr "10. Explain a flagged transaction (LLM if Ollama is up, else template)"
-  PID=$(curl -s "$B/v1/analyst/reviews?status=DECIDED&limit=1" -H "Authorization: Bearer $ADMIN" | j '[0]["paymentId"]')
+hr "8. Reset simulation state -> a clean, reproducible slate for what follows"
+curl -s -X POST $B/v1/admin/simulate/reset -H "Authorization: Bearer $ADMIN" | python3 -m json.tool
+
+hr "9. Generate a scenario with fraud no rule can see (stealthRate) and legit traffic that trips one anyway (fraudShapedLegitRate)"
+RUN=$(curl -s -X POST $B/v1/admin/simulate -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' \
+  -d '{"count":80,"fraudRate":0.3,"stealthRate":0.5,"fraudShapedLegitRate":0.3,"seed":42}')
+echo "$RUN" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(" population:",d["populationPayments"],"warm-up:",d["warmupPayments"],"buckets:",d["bucketCounts"])'
+RUNID=$(echo "$RUN" | j '["runId"]')
+echo "run id: $RUNID"
+
+hr "10. Force this run's ground truth (the simulated dispute window) closed right now"
+curl -s -X POST "$B/v1/admin/simulate/$RUNID/resolve" -H "Authorization: Bearer $ADMIN" >/dev/null
+echo "resolved"
+
+hr "11. Fraud detection effectiveness for this run, right after Resolve — some fraud is CAPTURED but not yet written off"
+curl -s "$B/v1/analyst/metrics/fraud?runId=$RUNID" -H "Authorization: Bearer $ADMIN" | python3 -m json.tool
+
+hr "12. The USP — Auto-Clear impact for this run (analyst view, scoped by ?runId=)"
+curl -s "$B/v1/analyst/metrics/autoclear?runId=$RUNID" -H "Authorization: Bearer $ADMIN" | python3 -m json.tool
+
+hr "13. Run a settlement batch — a capture only pays out once its ground truth resolves legitimate; confirmed fraud is written off instead"
+curl -s -X POST $B/v1/settlements/run -H "Authorization: Bearer $ADMIN" | python3 -m json.tool
+
+hr "14. Same fraud metrics, same run, after settlement — fraud missed should have dropped: settlement caught what capture alone did not"
+curl -s "$B/v1/analyst/metrics/fraud?runId=$RUNID" -H "Authorization: Bearer $ADMIN" | python3 -m json.tool
+
+hr "15. Explain a flagged, decided transaction from this run (LLM if Ollama is up, else template)"
+PID=$(curl -s "$B/v1/analyst/reviews?status=DECIDED&limit=50" -H "Authorization: Bearer $ADMIN" | \
+  python3 -c 'import sys,json;d=json.load(sys.stdin);print(d[0]["paymentId"] if d else "")')
+if [ -n "$PID" ]; then
   curl -s "$B/v1/risk/$PID/explain" -H "Authorization: Bearer $ADMIN" | python3 -m json.tool
 else
-  echo "ML sidecar not running on :9000 — skipping the fraud/auto-clear demo."
+  echo "no decided reviews yet — the review scheduler hasn't caught up, skipping."
 fi
 
-hr "11. Prometheus business metrics"
+hr "16. Prometheus business metrics"
 curl -s $B/actuator/prometheus | grep -E '^finpay_(payments|risk_decisions|autoclear)' | sort
 
-hr "done — open the dashboard at http://localhost:5173"
+hr "done — open the dashboard at http://localhost:5173, pick \"this run only\" to see exactly what just happened"

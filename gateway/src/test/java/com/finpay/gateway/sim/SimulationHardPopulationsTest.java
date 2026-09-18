@@ -1,6 +1,7 @@
 package com.finpay.gateway.sim;
 
 import com.finpay.gateway.support.AbstractIntegrationTest;
+import com.finpay.gateway.support.TestFixtures;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -25,6 +26,7 @@ class SimulationHardPopulationsTest extends AbstractIntegrationTest {
 
     @Autowired SimulationService sim;
     @Autowired StringRedisTemplate redis;
+    @Autowired TestFixtures fixtures;
 
     /**
      * The single most important finding of the day. A stealth-fraud transaction is built to
@@ -167,12 +169,24 @@ class SimulationHardPopulationsTest extends AbstractIntegrationTest {
 
     /**
      * What {@code reset()} is actually for: NOT basic reproducibility (proven above without
-     * it), but the auto-clear threshold, which is deliberately global and only ever ratchets
-     * up. A scenario that provokes a false auto-clear changes it — correctly — for every run
-     * after, unless reset() is called.
+     * it), but the state that stays deliberately global across runs — the auto-clear
+     * threshold (only ever ratchets up) and the Redis feature store — plus one more that
+     * {@code reset()}'s own javadoc never mentioned until interview sprint Day 14: the
+     * pgvector confirmed-fraud case store ({@link com.finpay.gateway.risk.FraudVectorStore}).
+     * Found while writing a demo script meant to be exactly reproducible by seed —
+     * {@code GroundTruthResolver} writes every confirmed fraud into {@code fraud_case_vectors}
+     * (global, never run-scoped, by design — a real fraud case library should keep growing),
+     * and {@link com.finpay.gateway.risk.FraudVectorStore#avgSimilarityToKnownFraud} starts
+     * contributing to every later risk score the moment that table crosses 25 rows. Two runs
+     * of the identical seed, {@code reset()} called between them, produced the same population
+     * and the same fraud/legit split (proving the run-scoping fix from Day 7 still holds) but
+     * a different risk-bucket distribution — the first run had a CRITICAL-bucket payment and
+     * the second didn't, because the second started with the first run's confirmed fraud
+     * already sitting in the similarity index. That's not the calibrator "doing its job" the
+     * way the ratchet is — it's state {@code reset()} claimed to clear and silently didn't.
      */
     @Test
-    void reset_putsTheRatchetedThresholdBackToItsFloor_andClearsTheFeatureStore() {
+    void reset_putsTheRatchetedThresholdBackToItsFloor_clearsTheFeatureStore_andClearsConfirmedFraudCases() {
         // Reproduce a ratchet the way AutoClearCalibrator actually leaves one, without
         // needing a real false auto-clear: go straight at the config row it writes.
         jdbc.update("INSERT INTO system_config(key, value) VALUES ('autoclear.threshold', '0.95') "
@@ -181,6 +195,13 @@ class SimulationHardPopulationsTest extends AbstractIntegrationTest {
         assertThat(count("SELECT count(*) FROM system_config WHERE key = 'autoclear.threshold' AND value = '0.95'"))
                 .isEqualTo(1);
 
+        UUID merchantId = fixtures.newMerchant();
+        UUID paymentId = fixtures.newCapturedPayment(merchantId, 10_000).getId();
+        String zeroVector = "[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]";
+        jdbc.update("INSERT INTO fraud_case_vectors (payment_id, feature_vector, fraud_type) VALUES (?, ?::vector, ?)",
+                paymentId, zeroVector, "velocity_abuse");
+        assertThat(count("SELECT count(*) FROM fraud_case_vectors")).isEqualTo(1);
+
         int cleared = sim.reset();
 
         assertThat(count("SELECT count(*) FROM system_config WHERE key = 'autoclear.threshold'"))
@@ -188,6 +209,9 @@ class SimulationHardPopulationsTest extends AbstractIntegrationTest {
         assertThat(cleared).as("the marker key (and whatever else was left in the feature store) was cleared")
                 .isGreaterThanOrEqualTo(1);
         assertThat(redis.hasKey("finpay:vel:reset-test-marker")).isFalse();
+        assertThat(count("SELECT count(*) FROM fraud_case_vectors"))
+                .as("the confirmed-fraud similarity index — otherwise invisible non-determinism between two same-seed demo runs — is empty too")
+                .isZero();
     }
 
     private Set<String> deviceFingerprintsFor(UUID runId) {

@@ -44,12 +44,14 @@ public class SimulationController {
     }
 
     /**
-     * Clears the Redis feature store and the auto-clear threshold's ratchet. Call this before
-     * re-running the same seed and expecting the same numbers — see {@link SimulationService#reset()}.
+     * Clears the Redis feature store, the auto-clear threshold's ratchet, and the pgvector
+     * confirmed-fraud case store. Call this before re-running the same seed and expecting the
+     * same numbers — see {@link SimulationService#reset()}.
      */
     @PostMapping("/reset")
     public Map<String, Object> reset() {
         int cleared = sim.reset();
-        return Map.of("redisKeysCleared", cleared, "autoClearThresholdResetToFloor", true);
+        return Map.of("redisKeysCleared", cleared, "autoClearThresholdResetToFloor", true,
+                "fraudCaseVectorsCleared", true);
     }
 }

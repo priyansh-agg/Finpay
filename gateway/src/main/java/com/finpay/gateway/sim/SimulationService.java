@@ -277,17 +277,25 @@ public class SimulationService {
     }
 
     /**
-     * Clears the one piece of state this service deliberately does NOT scope per run: the
-     * Redis feature store, and the auto-clear confidence threshold.
+     * Clears the state this service deliberately does NOT scope per run: the Redis feature
+     * store, the auto-clear confidence threshold, and the pgvector confirmed-fraud case store.
      *
-     * <p>Both are shared across runs on purpose elsewhere in the system (a real gateway has
-     * exactly one feature store and one calibrated threshold, not one per simulation), so
-     * unlike customer pools and device fingerprints they cannot simply be made run-unique.
-     * The threshold in particular only ever ratchets UP after a confirmed false auto-clear
-     * (architecture-freeze Doubt 4) — which stealth fraud can now genuinely trigger — so a
-     * demo or test that wants two same-seed runs to produce the SAME numbers must call this
-     * between them, or the second run's higher threshold is not non-determinism, it is the
-     * calibrator doing exactly its job against what the first run left behind.
+     * <p>All three are shared across runs on purpose elsewhere in the system (a real gateway
+     * has exactly one feature store, one calibrated threshold, and one growing fraud-case
+     * library, not one per simulation), so unlike customer pools and device fingerprints they
+     * cannot simply be made run-unique. The threshold only ever ratchets UP after a confirmed
+     * false auto-clear (architecture-freeze Doubt 4) — which stealth fraud can now genuinely
+     * trigger. The case store ({@link com.finpay.gateway.risk.FraudVectorStore}) is written by
+     * {@link com.finpay.gateway.groundtruth.GroundTruthResolver} for every confirmed fraud and
+     * starts contributing a similarity signal to every later risk score once it crosses 25
+     * rows (interview sprint Day 14 — found live: two identical-seed runs with only the
+     * threshold/Redis cleared between them still produced different risk-bucket distributions,
+     * because the second run's scoring wasn't blind to the first run's confirmed fraud the way
+     * a real reproducibility guarantee requires). A demo or test that wants two same-seed runs
+     * to produce the SAME numbers must call this between them, or a later run's different
+     * outcome is not non-determinism — for the threshold, it is the calibrator doing exactly
+     * its job against what an earlier run left behind; for the case store, it was, until now,
+     * a real gap in what "reset" promised to reset.
      *
      * @return how many Redis keys were cleared
      */
@@ -298,6 +306,7 @@ public class SimulationService {
             redis.delete(keys);
         }
         autoClearPolicy.resetToFloor();
+        jdbc.update("DELETE FROM fraud_case_vectors");
         return cleared;
     }
 
