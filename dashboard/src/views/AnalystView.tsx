@@ -188,6 +188,14 @@ export function AnalystView() {
 
       <div className="panel">
         <h2>Fraud detection effectiveness</h2>
+        {scope === "run" && lastRun && fraudMetrics &&
+          fraudMetrics.totalFraud === 0 && fraudMetrics.totalLegit === 0 &&
+          lastRun.legit + lastRun.fraud > 0 && (
+          <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+            Every number below is 0 of 0 because this run's ground truth hasn't resolved yet —
+            it's scored only against outcomes that have actually resolved. Click <b>Resolve now</b> below.
+          </p>
+        )}
         {fraudMetrics && (
           <div className="grid">
             <Stat

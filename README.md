@@ -74,12 +74,18 @@ gateway/        Spring Boot modular monolith
     outbox/       transactional outbox
     webhook/      outbox fan-out, HMAC-signed delivery, retry/dead-letter, demo receiver
     groundtruth/  hidden actually_fraudulent label + delayed resolver + false-clear reconcile
-    analyst/      review queue, reference analyst, Auto-Clear Engine, calibrator, LLM explain
-    settlement/   nightly-style payout batch: sweeps merchant payables to MERCHANT_SETTLED
-    sim/          Phase-3 evaluation harness (POST /v1/admin/simulate)
+    analyst/      review queue (human claim/decide), reference analyst, Auto-Clear Engine,
+                  calibrator, LLM explain, run-scoped precision/recall/FPR metrics
+    settlement/   payout batch with holdback: a capture is only paid out once its ground truth
+                  resolves legitimate; confirmed fraud is written off (FRAUD_WRITEOFF), not paid
+    sim/          Phase-3 evaluation harness (POST /v1/admin/simulate) — reproducible by seed,
+                  every payment/review tagged with its run, on-demand ground-truth resolution
 ml-service/     Python FastAPI: FinPay-native model (live) + Auto-Clear model (live) + Kaggle demo
-dashboard/      React + TS: merchant sandbox + risk-analyst / auto-clear console
-docs/           architecture freeze, phase plan + measured results
+dashboard/      React + TS, routed (react-router-dom): Payments (filter/search/pagination),
+                a 7-tab Payment Detail (overview/risk/ledger/refunds/webhooks/timeline/audit),
+                Sandbox, and Risk/Auto-Clear (scenario controls, run lifecycle, run-scoped metrics)
+docs/           architecture freeze, phase plan + measured results, AUDIT.md (a full correctness
+                + product audit with a dated remediation log — every finding, fix, and test)
 ```
 
 ## Running locally
@@ -133,9 +139,9 @@ harness (`POST /v1/admin/simulate`), which carries its own hidden ground-truth l
 The merchant creates an order and gets a shareable link — `/pay/{orderId}` — that anyone can
 open and pay, **no customer account or login**, exactly like a real hosted checkout. The
 order id is the capability token; `GET/POST /v1/checkout/{orderId}` are `permitAll` but
-rate-limited by caller IP. Try it in the dashboard: **Merchant sandbox → Create a payment
-link** → "Open as customer" → pay with a test card → back in the merchant tab, **Refresh**
-the Transactions panel to watch it land (and, if it was held for review, settle).
+rate-limited by caller IP. Try it in the dashboard: **Sandbox → Create a payment link** →
+"Open as customer" → pay with a test card → the **Payments** tab shows it land (click through
+for the full 7-tab detail — timeline, risk, ledger impact, and whether it was held for review).
 
 ## Phase 3 — the point of the project
 
@@ -149,10 +155,22 @@ legitimate** and proves it with a number.
   "would that analyst clear this?" and auto-clears only when *every* check agrees (bucket,
   no prior fraud, reference analyst concurs, ML confidence ≥ a calibrated threshold).
 - Every auto-clear is reconciled against the hidden `actually_fraudulent` label once it
-  resolves. **A single false auto-clear ratchets the threshold up and logs an error.**
+  resolves. **A single false auto-clear ratchets the threshold up and logs an error** — this
+  is a real, live calibration loop, not a claim: the simulator can generate fraud with no rule
+  signal at all (`stealthRate`) and legitimate traffic that trips a rule anyway
+  (`fraudShapedLegitRate`), so false clears and wrongly-rejected legit traffic are both things
+  that actually happen in a demo run, not populations engineered to avoid producing either.
+- Auto-Clear isn't the last line of defense — **settlement holdback** is: a capture only pays
+  out to the merchant once its ground truth resolves legitimate. Confirmed fraud, however it
+  got captured (auto-cleared, human-cleared, or the low-risk auto-capture path that never
+  touches review at all), is written off before payout, not after.
 
-Measured over ~2,200 flagged transactions in simulation: **~25% auto-cleared with zero false
-auto-clears.** Watch it live: `POST /v1/admin/simulate` then the dashboard's Risk / Auto-Clear tab.
+Run it yourself: `POST /v1/admin/simulate` (scenario knobs: count / fraud / stealth /
+fraud-shaped-legit / seed) → **Resolve now** → the dashboard's Risk / Auto-Clear tab, scoped to
+that one run. A realistic run (50% stealth, 30% fraud-shaped-legit) typically shows recall in
+the 60–90% range right after resolve — real fraud genuinely gets missed by review alone — and
+then **100% once a settlement batch runs**, because holdback catches exactly what review
+didn't. `./demo.sh` drives this whole lifecycle end to end from a clean, reproducible seed.
 
 ## What to say in interviews
 
@@ -172,10 +190,15 @@ auto-clears.** Watch it live: `POST /v1/admin/simulate` then the dashboard's Ris
   loop from confirmed chargebacks.
 - **(lead with this) "What's the actual insight?"** — Fraud *flagging* isn't the hard part —
   most flags are false positives, and that burns analyst hours. We built a second layer that
-  safely auto-clears the high-confidence false positives, measured against a simulated ground
-  truth, with **zero false auto-clears** and a **~20–25% cut in manual review volume**. The
-  safety comes from financial mechanics (funds are held, not settled, until confidently
-  cleared) plus a calibration loop, not just an ML threshold.
+  safely auto-clears high-confidence false positives, measured against a simulated ground
+  truth that's specifically constructed to be able to catch the engine getting it wrong
+  (fraud with no rule signal, legit traffic that trips one anyway). When it does get it wrong,
+  the safety net isn't "auto-clear never errs" — it's financial mechanics: funds stay held
+  until confidently cleared, a false clear ratchets the calibration threshold up immediately,
+  and settlement holdback means a confirmed-fraud capture is written off before payout even if
+  every upstream check missed it. Recall against ground truth reaches 100% only *after*
+  holdback runs — that gap between "review caught it" and "the money was actually protected"
+  is the whole reason the ledger, not the ML model, is the real backstop.
 - **"What's simulated / what would change for production?"** — The reference analyst and the
   `actually_fraudulent` label. Real deployment swaps in actual analyst feedback + confirmed
   chargebacks, adds drift monitoring (analyst behaviour and fraud both shift), and a
@@ -183,11 +206,23 @@ auto-clears.** Watch it live: `POST /v1/admin/simulate` then the dashboard's Ris
 
 ## Status
 
-**All three phases implemented and verified.** 29 automated tests green: 20-way idempotency
-race, refund concurrency, ledger reconciliation + append-only enforcement, exhaustive state
-machine, rule engine, reference analyst, webhook retry→dead-letter→recovery, rate limiter,
-and the Phase-3 auto-clear flow + calibration. See [`docs/PHASES.md`](docs/PHASES.md) for the
-per-item checklist, the measured Phase-3 numbers, and the honest limitations.
+**All three phases implemented, verified, and then independently audited.** After the phased
+build, a full code-trace + live-system audit ([`docs/AUDIT.md`](docs/AUDIT.md)) found and this
+project fixed 5 P0 correctness bugs, a dozen-plus P1/P2 product and measurement gaps, and
+several bugs the audit itself missed and later live verification caught (self-invocation
+bypassing `@Transactional`, ground-truth resolution silently capped below a real run's size,
+non-determinism leaking through a shared pgvector case store). Every fix in that log has its
+own regression test and, where the bug was in logic rather than markup, a mutation check
+(revert the fix, confirm the specific test fails, restore, confirm green again).
+
+100 automated tests green: 20-way idempotency race, refund concurrency, ledger reconciliation
++ append-only enforcement, exhaustive state machine, rule engine, reference analyst, webhook
+retry→dead-letter→recovery, rate limiter, the Phase-3 auto-clear flow + calibration, a real
+human-reviewable queue, settlement holdback + fraud write-off, run-scoped precision/recall/FPR
+against ground truth, transaction search/filter/pagination, the full Payment Detail read path,
+and run-scoped Auto-Clear metrics. See [`docs/PHASES.md`](docs/PHASES.md) for the original
+phased build's per-item checklist and [`docs/AUDIT.md`](docs/AUDIT.md) for the audit itself and
+its dated remediation log — every finding, the fix, and the test that proves it.
 
 ## Tests
 
