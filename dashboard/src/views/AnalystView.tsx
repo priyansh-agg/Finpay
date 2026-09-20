@@ -157,25 +157,44 @@ export function AnalystView() {
       <div className="panel">
         <h2>Auto-Clear Engine — impact</h2>
         {metrics && (
-          <div className="grid">
-            <Stat n={metrics.flaggedTotal} l="transactions flagged for review" />
-            <Stat n={metrics.autoCleared} l="auto-cleared (no human)" good />
-            <Stat n={metrics.pendingHuman} l="pending — awaiting a human" />
-            <Stat n={metrics.humanReviewed} l="reviewed by a human" />
-            <Stat n={metrics.simulatedAnalystReviewed} l="reviewed by the demo bot (not a human)" />
-            <Stat
-              n={metrics.manualReviewReductionPct == null ? "—" : `${metrics.manualReviewReductionPct}%`}
-              l="manual review volume removed"
-              good={metrics.manualReviewReductionPct != null}
-            />
-            <Stat
-              n={metrics.falseAutoClears}
-              l={`false auto-clears (of ${metrics.autoClearsResolved} resolved)`}
-              bad={metrics.falseAutoClears > 0}
-              good={metrics.falseAutoClears === 0}
-            />
-            <Stat n={metrics.threshold} l="auto-clear confidence threshold (calibrated)" />
-          </div>
+          <>
+            <div className="kpi-row" style={{ marginBottom: 18 }}>
+              <Kpi
+                label="Flagged for review"
+                value={metrics.flaggedTotal.toLocaleString()}
+                sub="payments the engine sent to a queue"
+              />
+              <Kpi
+                label="Auto-clear rate"
+                value={`${metrics.autoClearRatePct}%`}
+                sub={`${metrics.autoCleared.toLocaleString()} cleared without a human`}
+              />
+              <Kpi
+                label="Manual review removed"
+                value={metrics.manualReviewReductionPct == null ? "—" : `${metrics.manualReviewReductionPct}%`}
+                sub={metrics.manualReviewReductionPct == null
+                  ? "needs one human decision to have a baseline"
+                  : "of the human queue, removed"}
+              />
+              <Kpi
+                label="False auto-clears"
+                value={metrics.falseAutoClears}
+                sub={`of ${metrics.autoClearsResolved} resolved · threshold now ${metrics.threshold}`}
+              />
+            </div>
+            {/* These four partition flaggedTotal: everything flagged is either still pending, or
+                was decided by exactly one of the three deciders. */}
+            <ul className="legend-list">
+              <LegendRow color="#16824a" label="auto-cleared (no human)"
+                         value={metrics.autoCleared} total={metrics.flaggedTotal} />
+              <LegendRow color="#2650c4" label="reviewed by a human"
+                         value={metrics.humanReviewed} total={metrics.flaggedTotal} />
+              <LegendRow color="#848aa3" label="reviewed by the demo bot (not a human)"
+                         value={metrics.simulatedAnalystReviewed} total={metrics.flaggedTotal} />
+              <LegendRow color="#8a5c07" label="pending — awaiting a human"
+                         value={metrics.pendingHuman} total={metrics.flaggedTotal} />
+            </ul>
+          </>
         )}
         <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
           Ground truth (<span className="mono">actually_fraudulent</span>) is simulated and resolves after a delay,
@@ -375,11 +394,3 @@ export function AnalystView() {
   );
 }
 
-function Stat({ n, l, good, bad }: { n: React.ReactNode; l: string; good?: boolean; bad?: boolean }) {
-  return (
-    <div className={`stat ${good ? "good" : ""} ${bad ? "bad" : ""}`}>
-      <div className="n">{n}</div>
-      <div className="l">{l}</div>
-    </div>
-  );
-}

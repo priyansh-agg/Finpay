@@ -313,3 +313,10 @@ details.explain summary { cursor: pointer; color: var(--p-600); font-weight: 500
   padding: 6px 10px 4px; font-size: 10.5px; font-weight: 600; text-transform: uppercase;
   letter-spacing: .06em; color: var(--n-400);
 }
+
+/* ---------- avatar ----------
+   Size and colour come from the component (hue derived from the ref), so this only owns shape. */
+.avatar {
+  display: inline-flex; align-items: center; justify-content: center; border-radius: 999px;
+  font-weight: 600; letter-spacing: .02em; flex-shrink: 0; line-height: 1;
+}

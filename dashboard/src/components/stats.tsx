@@ -44,3 +44,28 @@ export function LegendRow({ color, label, value, total }: {
     </li>
   );
 }
+
+/**
+ * Initials in a tinted circle, for the places a bare customer ref used to sit on its own.
+ * The hue is derived from the ref itself, so the same customer always reads the same colour
+ * across screens — recognisable without being decorative, which is the only reason to show an
+ * avatar for an entity that has no picture.
+ */
+export function Avatar({ label, size = 28 }: { label: string; size?: number }) {
+  const words = label.replace(/[^a-zA-Z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
+  const initials = words.slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
+  let hue = 0;
+  for (let i = 0; i < label.length; i++) hue = (hue * 31 + label.charCodeAt(i)) % 360;
+  return (
+    <span
+      className="avatar"
+      title={label}
+      style={{
+        width: size, height: size, fontSize: Math.round(size * 0.38),
+        background: `hsl(${hue} 60% 94%)`, color: `hsl(${hue} 45% 32%)`,
+      }}
+    >
+      {initials}
+    </span>
+  );
+}

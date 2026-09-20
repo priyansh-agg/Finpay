@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, formatMoney } from "../api";
+import { Avatar } from "../components/stats";
 import type { Payment } from "./PaymentsView";
 
 type Timeline = { fromStatus: string | null; toStatus: string; detail: string | null; createdAt: string }[];
@@ -95,7 +96,11 @@ function Overview({ payment, customer, autoClear }: { payment: Payment; customer
       <h2 style={{ marginTop: 20 }}>Customer</h2>
       {customer ? (
         <div className="kv">
-          <div className="k">Ref</div><div className="mono">{customer.externalRef}</div>
+          <div className="k">Ref</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            <Avatar label={customer.externalRef} size={26} />
+            <span className="mono">{customer.externalRef}</span>
+          </div>
           <div className="k">Email</div><div>{customer.email ?? "-"}</div>
           <div className="k">First seen</div><div>{new Date(customer.firstSeenAt).toLocaleString()}</div>
           <div className="k">Captures</div>

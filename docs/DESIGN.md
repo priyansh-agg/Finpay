@@ -248,18 +248,58 @@ tokens, so nothing of the library's default look was inherited.
 
 ---
 
+---
+
+## Round 4 — the USP screen stops being a pile of tiles
+
+### Auto-Clear panel → a composition
+
+Round 3 deliberately left this one alone. Its eight equal-weight tiles were the last place on
+the product where the most important screen looked like a debug readout: three of those tiles
+were *parts of one whole* and nothing said so.
+
+Now four KPI cards carry the headline facts (flagged, auto-clear rate, manual review removed,
+false auto-clears with the ratcheted threshold as its subtitle), over a breakdown list for
+where the flagged population actually went. Those four rows genuinely partition
+`flaggedTotal` — verified against live data: 78 auto-cleared + 0 human + 609 demo bot + 2
+pending = 689 flagged, exactly. The careful copy that justified deferring it (the `null`
+review-reduction baseline, the false-auto-clear denominator) is preserved, moved into card
+subtitles rather than dropped.
+
+With both panels converted, `Stat` had no callers left and was deleted.
+
+### Avatar
+
+A customer ref used to sit as a bare monospace string. `Avatar` (in the shared `stats.tsx`)
+renders initials in a circle whose hue is derived from the ref itself, so the same customer
+reads the same colour on every screen — recognisable rather than decorative, which is the only
+defensible reason to show an avatar for an entity that has no picture. Used on Payment Detail's
+customer block.
+
+**Honest limitation:** for machine-generated refs like `customer_1789823510785` the initials
+come out as "C1". Deterministic and harmless, but it flatters real customer names far more than
+simulator output.
+
+### Verified
+
+- Both screens confirmed live against real data (Risk console composition; avatar on Payment
+  Detail), typecheck clean, and the console carries no application errors — only the known Vite
+  HMR WebSocket noise documented in round 3.
+
+---
+
 ## Backlog for the next round (not yet done)
 
-- **The Auto-Clear panel's eight tiles** still need the composition treatment the fraud panel
-  now has — deferred deliberately above, because the copy carries real meaning.
-- **No customer avatar/identicon** anywhere a customer ref appears — initials-in-a-circle, as
-  Razorpay and Stripe both do.
+- **`.stat` / `.grid` CSS may now be orphaned** — `Stat` is gone, but other views may still use
+  those classes. Verify before deleting; do not assume.
 - **KPI cards carry no trend** — no sparkline or period-over-period delta, which every
   reference dashboard shows. Needs a second time window from the summary endpoint.
-- **Payments table has no row-level affordance** — no hover action, no bulk select, no column
-  sort (server-side sort isn't implemented either).
+- **Payments table has no row-level affordance** — no full-row click, no bulk select, no column
+  sort (server-side sort isn't implemented either). Scoped for this round, cut to keep the
+  change set honest.
 - **The Overview chart has one series.** Captured volume alone; failed/refunded as comparison
-  series would make it a real analytics view rather than a single line.
+  series would make it a real analytics view rather than a single line. Needs the daily query
+  extended.
 - **Dark mode** still not attempted (references are light-first); it needs its own token pass,
   not a naive invert.
 - **Cashfree's actual dashboard** deserves a proper look as the closest regional competitor —
