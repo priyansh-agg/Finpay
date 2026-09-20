@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatMoney as formatAmount } from "./api";
 
 type CheckoutView = {
   orderId: string;
@@ -25,11 +26,6 @@ async function api<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) throw new Error(data?.message ?? `HTTP ${res.status}`);
   return data as T;
-}
-
-function formatAmount(minor: number, currency: string) {
-  const symbol = currency === "INR" ? "₹" : currency === "USD" ? "$" : currency + " ";
-  return `${symbol}${(minor / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 }
 
 const TEST_TOKENS = [

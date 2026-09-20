@@ -1,0 +1,119 @@
+# FinPay Dashboard — Design Audit & Redesign Log
+
+**Started:** 2026-09-20
+**Method:** live comparison against real merchant dashboards (Razorpay, Stripe), plus a
+literature review of what specifically makes AI-generated UI look generic ("AI slop") and how
+to avoid it. Not a redesign from taste alone — every change below is either traceable to a
+reference screenshot or to a named, sourced rule.
+
+This log follows the same convention as [`AUDIT.md`](AUDIT.md): findings stay as written, a
+remediation table tracks what changed and why. Round 1 is below; later rounds append, they
+don't rewrite.
+
+---
+
+## Round 0 — why it read as "AI-generated," specifically
+
+The old `styles.css` (100 lines, one file, no design tokens) against real references:
+
+| Reference (what Razorpay/Stripe actually do) | FinPay had | Why it reads as unfinished |
+|---|---|---|
+| Light canvas, white cards, soft shadow for elevation | Dark theme (`#0f1115` / `#181b22`), flat 1px borders everywhere, zero shadow | This is [Tell 1 in the "unslop" checklist](https://www.claudecodehq.com/playbooks/unslop-ui) almost verbatim: untouched-default cards — border + radius + one bg-shift, no elevation, on *every* panel, stat, and input with no variation |
+| A confident, named brand color | `--accent: #5b8cff` — a generic blue-violet with no stated reason, chosen the way a framework default gets chosen | Not technically in the banned indigo/violet hue band, but the *process* was the tell: no reference, no rationale, just "a blue that looks fine" |
+| Icons everywhere — every nav item, every row affordance | Zero icons anywhere in the app. Nav items were plain text links | Razorpay's left rail pairs an icon with every single item (Home, Transactions, Settlements, Payment Links, Customers…); a text-only rail reads as a wireframe, not a shipped product |
+| Real typographic hierarchy — big bold numbers, small caps labels, a stated type choice | System-font stack, 14px body everywhere, headers distinguished only by `text-transform: uppercase` at the same 14px | No display/body pairing, no distinctive numeral treatment for money — exactly [Tell 8, "generic fonts," and the missing tabular-numeral convention real fintech UIs use for amounts](https://www.claudecodehq.com/playbooks/unslop-ui) |
+| Soft-tinted semantic badges (light bg + saturated text + a dot) | `.pill` used near-black tinted backgrounds (`#163a22`) barely distinguishable from the panel behind them, no border, no dot | Correct *idea* (tinted badge, not solid fill), wrong execution — too dark to read as "success," not "danger," at a glance |
+| Generous padding, real whitespace | 18px panel padding, 14px card padding, 14px grid gap | Cramped enough that dense views (Risk console, Payment Detail) felt like a spreadsheet, not a product |
+| A real login/brand moment | `.login { max-width: 340px; margin: 12vh auto; }`, no logo, on the same flat dark background as everything else | The first screen a user sees had zero brand presence |
+
+**References actually visited, not assumed:**
+- [razorpay.com/docs/payments/dashboard/home](https://razorpay.com/docs/payments/dashboard/home/) — the embedded dashboard screenshot (`payments-dashboard-in-home.jpg`, 2880×1674) is the primary reference: white top bar, light-lavender canvas, white left rail with icon+label nav grouped under small-caps section headers, active item = soft indigo-tinted pill background, AI-greeting card with rounded suggestion chips, KPI row with large bold numbers + small gray labels + a green "processed" indicator.
+- [stripe.com/payments](https://stripe.com/payments) — confirmed the same underlying language from a second, independent real product: white canvas, one purple accent used sparingly, duotone icon set in a 4-column feature grid, thin 1px dividers instead of boxed cards, a genuine interactive-panel mock (payment-method allocation slider) with real borders/radii/badge chips, solid-fill primary buttons.
+- [claudecodehq.com/playbooks/unslop-ui](https://www.claudecodehq.com/playbooks/unslop-ui) — the "AI slop" checklist actually applied below (tell numbers referenced in the table above are this source's own numbering).
+
+---
+
+## Round 1 — the token system + first full pass
+
+**Direction chosen, and why:** switch the console itself (not just the marketing copy) to a
+light theme matching the references directly — "start from a reference" is the checklist's own
+first rule, and the reference is a payments dashboard, not a code editor. Every token below is
+either sampled from a real object (see color) or picked for a stated, checkable reason (see
+type).
+
+### Color
+- Neutral ramp is hand-tuned (`--n-0` … `--n-900`, a faint cool tint), not stock Tailwind
+  slate/gray/zinc — the single most-cited "untouched default" tell.
+- Primary `--p-500: #2f5fe0` — deliberately outside the indigo/violet band (hue ~255–280) the
+  checklist calls out as "AI purple." FinPay's own hue is ~221 (blue, not violet).
+- Semantic colors (`--good`/`--warn`/`--bad`/`--crit`) are soft-tint pairs (light background +
+  saturated text + matching border), each with enough contrast to read at a glance — badges now
+  carry a small dot indicator too, matching the Razorpay reference's green-dot "Processed"
+  convention.
+
+### Type
+- **IBM Plex Sans** (UI) + **IBM Plex Mono** (money, ids) — a stated pairing, not an autopilot
+  pick. Plex is IBM's own enterprise/developer-tool typeface, a deliberate fit for a technical
+  fintech console; avoiding both failure modes the checklist names (the Inter/Geist "no-choice"
+  default *and* the Instrument-Serif/Fraunces "tasteful-choice" default, neither of which suits
+  a dense numeric admin UI anyway). Mono is applied specifically to money and ids — functional
+  (tabular-figure alignment in a ledger), not decorative — never to running prose.
+- `formatMoney()` (new, `src/api.ts`) replaced five different ad-hoc `(minor/100).toFixed(2)`
+  call sites across `PaymentsView`/`PaymentDetailView`/`AnalystView`/`CheckoutPage` with one
+  real-currency-symbol, grouped-decimal formatter (`₹2,499.00`, not `2499.00 INR`).
+
+### Structure
+- Small, intentional radius scale: 6 / 10 / 14px (controls / buttons / cards), pills stay fully
+  round — a deliberate scale, not `rounded-full` applied everywhere.
+- Soft, layered shadows (`--shadow-sm/md/lg`) replace flat-border-only elevation.
+- Icons: added `lucide-react`; every left-rail item now pairs an icon with its label, matching
+  the reference directly. A blue gradient logo mark ("F") appears in the header and on the
+  login card — the product's first brand moment.
+- `ComingSoonView` (the honest "not built yet" stub views) got a centered empty-state treatment
+  with an icon instead of left-aligned text in a box — reads as a deliberate empty state, not
+  an accidentally blank page.
+- The hosted checkout page (`checkout.css`, customer-facing — this is what an actual payer
+  sees) was re-pointed at the same token set instead of its own hand-rolled hex values, so the
+  brand is now consistent from login through to the payment moment itself.
+- Added a real favicon (an inline SVG matching the logo mark) — there was none before.
+
+### Bugs caught building this (live-verified, not assumed)
+- `body:has(.login) { background: ... radial-gradient(...) }` tiled visibly a second time below
+  the fold on a short page (`background-repeat` defaults to `repeat`, and the login page's body
+  is shorter than the viewport). Fixed with `no-repeat` + `min-height: 100vh` on `body`.
+- `.logo-mark` was scoped as `header.bar .logo-mark`, so the *same* class on the login page (not
+  inside `header.bar`) silently got none of its styling — rendered as unstyled inline text.
+  Caught by inspecting `getComputedStyle` after the first screenshot didn't show a filled
+  square; fixed by making `.logo-mark` a base rule.
+
+### Verified live
+Every route was loaded in-browser against real data from a running gateway + Postgres, not
+just typechecked: Login, Payments (list, filters, real rows), Payment Detail (Overview, Ledger,
+Risk tabs), Risk/Auto-Clear console (KPI cards, the scenario form, the review queue), Sandbox,
+a `ComingSoonView` stub, and the hosted checkout page end to end against a real order. Console
+checked clean on a fresh tab (no leftover errors from the redesign itself — the handful of
+401/500 entries in the browser's buffered console are pre-login/pre-backend artifacts from
+earlier in the session, confirmed stale against network-request timestamps).
+
+**Files touched:** `dashboard/src/styles.css` (full rewrite), `dashboard/src/checkout.css`,
+`dashboard/index.html` (fonts + favicon), `dashboard/src/App.tsx` (icons, logo mark, role
+badge), `dashboard/src/api.ts` (`formatMoney`), `dashboard/src/CheckoutPage.tsx`,
+`dashboard/src/views/PaymentsView.tsx`, `dashboard/src/views/PaymentDetailView.tsx`,
+`dashboard/src/views/AnalystView.tsx` (money formatting), `dashboard/src/views/ComingSoonView.tsx`
+(empty state). New dependency: `lucide-react`.
+
+---
+
+## Backlog for the next round (not yet done)
+
+- **No Overview/home page.** Razorpay's own reference lands on a KPI summary + "how can I help
+  you" moment before any table. FinPay's merchant role lands straight on the Payments table —
+  functional, but skips the "orient the user" moment the reference treats as the front door.
+- **Review queue action buttons** (`claim` / `clear` / `reject` / `explain`) are four small
+  ghost buttons crammed edge-to-edge in one table cell — readable but tight; worth a proper
+  menu or clearer grouping once there's time to touch `AnalystView.tsx`'s table markup.
+- **No customer avatar/identicon** anywhere a customer ref appears — a small, cheap "feels like
+  a real product" touch Razorpay/Stripe both use (initials-in-a-circle) that hasn't been done
+  yet.
+- **Dark mode** was not attempted this round (the reference dashboards are light-first); if
+  wanted later it needs its own token pass, not a naive invert.

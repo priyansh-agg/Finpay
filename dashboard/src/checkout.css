@@ -1,20 +1,21 @@
 .cx-page {
   min-height: 100vh;
-  background: #f4f5f7;
+  background: var(--n-25) radial-gradient(circle at 15% 10%, var(--p-50), transparent 45%) no-repeat;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  color: #1a1d23;
+  font: 14px/1.5 var(--font-sans);
+  color: var(--n-900);
 }
 .cx-card {
   width: 100%;
   max-width: 380px;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.08);
+  background: var(--n-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   padding: 32px 28px;
 }
 .cx-merchant {
@@ -22,38 +23,38 @@
   font-size: 16px;
   text-align: center;
   margin-bottom: 20px;
-  color: #111;
+  color: var(--n-900);
 }
-.cx-amount { font-size: 34px; font-weight: 700; text-align: center; margin-bottom: 4px; }
-.cx-receipt { text-align: center; color: #8a8f98; font-size: 12px; margin-bottom: 20px; }
-.cx-tabs { display: flex; gap: 8px; margin: 20px 0 14px; border-bottom: 1px solid #eceef1; }
+.cx-amount { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 34px; font-weight: 600; text-align: center; margin-bottom: 4px; }
+.cx-receipt { text-align: center; color: var(--n-400); font-size: 12px; margin-bottom: 20px; }
+.cx-tabs { display: flex; gap: 8px; margin: 20px 0 14px; border-bottom: 1px solid var(--border); }
 .cx-tab {
   flex: 1; padding: 10px; background: none; border: none; border-bottom: 2px solid transparent;
-  color: #8a8f98; font-weight: 600; cursor: pointer; font-size: 13px;
+  color: var(--n-400); font-weight: 600; cursor: pointer; font-size: 13px; transition: color .12s ease;
 }
-.cx-tab.active { color: #3b5bfd; border-bottom-color: #3b5bfd; }
-.cx-label { display: block; font-size: 12px; color: #6b7280; margin-bottom: 18px; }
+.cx-tab.active { color: var(--p-600); border-bottom-color: var(--p-500); }
+.cx-label { display: block; font-size: 12px; color: var(--n-500); margin-bottom: 18px; }
 .cx-select {
-  display: block; width: 100%; margin-top: 6px; padding: 11px 12px; border-radius: 8px;
-  border: 1px solid #dde1e7; font-size: 14px; background: #fff; color: #1a1d23;
+  display: block; width: 100%; margin-top: 6px; padding: 11px 12px; border-radius: var(--radius-sm);
+  border: 1px solid var(--n-200); font-size: 14px; background: var(--n-0); color: var(--n-900);
 }
 .cx-pay {
-  width: 100%; padding: 13px; border-radius: 8px; border: none; background: #3b5bfd;
-  color: #fff; font-weight: 700; font-size: 15px; cursor: pointer;
+  width: 100%; padding: 13px; border-radius: var(--radius-sm); border: none; background: var(--p-500);
+  color: #fff; font-weight: 700; font-size: 15px; cursor: pointer; transition: background .12s ease;
 }
 .cx-pay:disabled { opacity: .6; cursor: default; }
-.cx-pay:not(:disabled):hover { background: #2f4be0; }
-.cx-sandbox-note { text-align: center; color: #9aa1ab; font-size: 11px; margin-top: 14px; }
-.cx-error { color: #d1332f; text-align: center; font-size: 13px; margin-top: 12px; }
-.cx-muted { color: #6b7280; font-size: 13px; text-align: center; }
-.cx-footer { color: #9aa1ab; font-size: 12px; margin-top: 18px; }
+.cx-pay:not(:disabled):hover { background: var(--p-600); }
+.cx-sandbox-note { text-align: center; color: var(--n-400); font-size: 11px; margin-top: 14px; }
+.cx-error { color: var(--bad-text); text-align: center; font-size: 13px; margin-top: 12px; }
+.cx-muted { color: var(--n-500); font-size: 13px; text-align: center; }
+.cx-footer { color: var(--n-400); font-size: 12px; margin-top: 18px; }
 
 .cx-result { text-align: center; padding: 12px 0; }
 .cx-check { font-size: 40px; margin-bottom: 10px; }
 .cx-result-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
-.cx-result-ok .cx-check { color: #1e9e5a; }
-.cx-result-ok .cx-result-title { color: #1e9e5a; }
-.cx-result-fail .cx-check { color: #d1332f; }
-.cx-result-fail .cx-result-title { color: #d1332f; }
-.cx-result-pending .cx-check { color: #b8860b; }
-.cx-result-pending .cx-result-title { color: #b8860b; }
+.cx-result-ok .cx-check { color: var(--good-text); }
+.cx-result-ok .cx-result-title { color: var(--good-text); }
+.cx-result-fail .cx-check { color: var(--bad-text); }
+.cx-result-fail .cx-result-title { color: var(--bad-text); }
+.cx-result-pending .cx-check { color: var(--warn-text); }
+.cx-result-pending .cx-result-title { color: var(--warn-text); }

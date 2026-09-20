@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api";
+import { api, formatMoney } from "../api";
 
 export type Payment = {
   id: string; orderId: string; amountMinor: number; currency: string; method: string;
@@ -93,7 +93,7 @@ export function PaymentsView() {
 
       <table>
         <thead>
-          <tr><th>payment</th><th>status</th><th>risk</th><th>amount</th><th>method</th><th>created</th></tr>
+          <tr><th>payment</th><th>status</th><th>risk</th><th style={{ textAlign: "right" }}>amount</th><th>method</th><th>created</th></tr>
         </thead>
         <tbody>
           {result?.items.map((p) => (
@@ -103,7 +103,7 @@ export function PaymentsView() {
               </td>
               <td><span className={`pill ${p.status}`}>{p.status}</span></td>
               <td>{p.riskBucket ? <span className={`pill ${p.riskBucket}`}>{p.riskBucket}</span> : "-"}</td>
-              <td>{(p.amountMinor / 100).toFixed(2)} {p.currency}</td>
+              <td className="num" style={{ textAlign: "right" }}>{formatMoney(p.amountMinor, p.currency)}</td>
               <td className="muted">{p.method}</td>
               <td className="muted">{new Date(p.createdAt).toLocaleString()}</td>
             </tr>

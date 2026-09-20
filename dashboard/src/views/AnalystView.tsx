@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../api";
+import { api, formatMoney } from "../api";
 
 type Metrics = {
   flaggedTotal: number; pendingHuman: number; decided: number; autoCleared: number;
@@ -217,7 +217,7 @@ export function AnalystView() {
             <Stat n={fraudMetrics.fraudCaughtByWriteOff} l="fraud caught after capture (settlement write-off)" good />
             <Stat
               n={fraudMetrics.fraudMissed}
-              l={`fraud missed — reached the merchant (₹${(fraudMetrics.fraudMissedMinor / 100).toLocaleString()})`}
+              l={`fraud missed — reached the merchant (${formatMoney(fraudMetrics.fraudMissedMinor, "INR")})`}
               bad={fraudMetrics.fraudMissed > 0}
               good={fraudMetrics.fraudMissed === 0}
             />
@@ -282,9 +282,9 @@ export function AnalystView() {
             </div>
             {lastBatch && (
               <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-                Settlement batch: {lastBatch.merchantCount} merchant(s) paid ₹{(lastBatch.totalMinor / 100).toLocaleString()};{" "}
+                Settlement batch: {lastBatch.merchantCount} merchant(s) paid {formatMoney(lastBatch.totalMinor, "INR")};{" "}
                 <strong>
-                  {lastBatch.writtenOffCount} confirmed-fraud payment(s) written off (₹{(lastBatch.writtenOffMinor / 100).toLocaleString()})
+                  {lastBatch.writtenOffCount} confirmed-fraud payment(s) written off ({formatMoney(lastBatch.writtenOffMinor, "INR")})
                 </strong> before they could pay out.
               </p>
             )}

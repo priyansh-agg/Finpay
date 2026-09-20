@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api } from "../api";
+import { api, formatMoney } from "../api";
 import type { Payment } from "./PaymentsView";
 
 type Timeline = { fromStatus: string | null; toStatus: string; detail: string | null; createdAt: string }[];
@@ -82,7 +82,7 @@ function Overview({ payment, customer, autoClear }: { payment: Payment; customer
     <>
       <div className="kv">
         <div className="k">Status</div><div><span className={`pill ${payment.status}`}>{payment.status}</span></div>
-        <div className="k">Amount</div><div>{(payment.amountMinor / 100).toFixed(2)} {payment.currency}</div>
+        <div className="k">Amount</div><div className="num">{formatMoney(payment.amountMinor, payment.currency)}</div>
         <div className="k">Method</div><div>{payment.method}</div>
         <div className="k">Order</div><div className="mono">{payment.orderId}</div>
         <div className="k">Processor ref</div><div className="mono">{payment.processorRef ?? "-"}</div>
@@ -99,7 +99,7 @@ function Overview({ payment, customer, autoClear }: { payment: Payment; customer
           <div className="k">Email</div><div>{customer.email ?? "-"}</div>
           <div className="k">First seen</div><div>{new Date(customer.firstSeenAt).toLocaleString()}</div>
           <div className="k">Captures</div>
-          <div>{customer.capturedCount} totalling {(customer.capturedSumMinor / 100).toFixed(2)} (avg {(customer.rollingAvgMinor / 100).toFixed(2)})</div>
+          <div>{customer.capturedCount} totalling <span className="num">{formatMoney(customer.capturedSumMinor, payment.currency)}</span> (avg <span className="num">{formatMoney(customer.rollingAvgMinor, payment.currency)}</span>)</div>
         </div>
       ) : <p className="muted">no customer profile</p>}
 
@@ -158,13 +158,13 @@ function LedgerTab({ paymentId }: { paymentId: string }) {
             <span className="muted" style={{ fontSize: 12 }}>{new Date(tx.createdAt).toLocaleString()}</span>
           </div>
           <table>
-            <thead><tr><th>account</th><th>direction</th><th>amount</th></tr></thead>
+            <thead><tr><th>account</th><th>direction</th><th style={{ textAlign: "right" }}>amount</th></tr></thead>
             <tbody>
               {tx.entries.map((e, i) => (
                 <tr key={i}>
                   <td>{e.accountType ?? "-"}{e.ownerType === "MERCHANT" ? " (merchant)" : ""}</td>
                   <td>{e.direction}</td>
-                  <td>{(e.amountMinor / 100).toFixed(2)} {e.currency}</td>
+                  <td className="num" style={{ textAlign: "right" }}>{formatMoney(e.amountMinor, e.currency)}</td>
                 </tr>
               ))}
             </tbody>
@@ -184,11 +184,11 @@ function RefundsTab({ paymentId }: { paymentId: string }) {
   if (refunds.length === 0) return <p className="muted">no refunds</p>;
   return (
     <table>
-      <thead><tr><th>amount</th><th>status</th><th>reason</th><th>created</th></tr></thead>
+      <thead><tr><th style={{ textAlign: "right" }}>amount</th><th>status</th><th>reason</th><th>created</th></tr></thead>
       <tbody>
         {refunds.map((r) => (
           <tr key={r.id}>
-            <td>{(r.amountMinor / 100).toFixed(2)} {r.currency}</td>
+            <td className="num" style={{ textAlign: "right" }}>{formatMoney(r.amountMinor, r.currency)}</td>
             <td><span className={`pill ${r.status}`}>{r.status}</span></td>
             <td className="muted">{r.reason ?? "-"}</td>
             <td className="muted">{new Date(r.createdAt).toLocaleString()}</td>

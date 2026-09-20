@@ -40,3 +40,9 @@ export function login(email: string, password: string) {
     body: { email, password },
   });
 }
+
+/** Real currency symbol + grouped decimal, not a raw "1234.5 INR" — used everywhere money renders. */
+export function formatMoney(minor: number, currency: string) {
+  const symbol = currency === "INR" ? "₹" : currency === "USD" ? "$" : currency + " ";
+  return `${symbol}${(minor / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+}

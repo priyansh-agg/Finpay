@@ -1,11 +1,18 @@
 import { useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate, NavLink } from "react-router-dom";
+import {
+  Receipt, ShoppingBag, Undo2, Landmark, Users, FlaskConical, ShieldHalf,
+} from "lucide-react";
 import { auth, login } from "./api";
 import { AnalystView } from "./views/AnalystView";
 import { PaymentsView } from "./views/PaymentsView";
 import { PaymentDetailView } from "./views/PaymentDetailView";
 import { SandboxView } from "./views/SandboxView";
 import { ComingSoonView } from "./views/ComingSoonView";
+
+function LogoMark() {
+  return <span className="logo-mark">F</span>;
+}
 
 export function App() {
   const [role, setRole] = useState<string | null>(auth.role);
@@ -20,6 +27,12 @@ export function App() {
 }
 
 const MERCHANT_STUBS = ["Orders", "Refunds", "Settlements", "Customers"];
+const STUB_ICONS: Record<string, React.ReactNode> = {
+  Orders: <ShoppingBag size={17} />,
+  Refunds: <Undo2 size={17} />,
+  Settlements: <Landmark size={17} />,
+  Customers: <Users size={17} />,
+};
 
 /**
  * The navigation shell (interview sprint Day 11). Replaces the two-button flat tab bar with a
@@ -36,9 +49,12 @@ function Shell({ role, onSignOut }: { role: string; onSignOut: () => void }) {
   return (
     <>
       <header className="bar">
-        <div>
-          <h1>FinPay Console</h1>
-          <span className="role">{role}</span>
+        <div className="brand">
+          <LogoMark />
+          <div>
+            <h1>FinPay Console</h1>
+          </div>
+          <span className="role">{role.replaceAll("_", " ")}</span>
         </div>
         <button className="ghost" onClick={onSignOut}>Sign out</button>
       </header>
@@ -47,17 +63,17 @@ function Shell({ role, onSignOut }: { role: string; onSignOut: () => void }) {
           {canMerchant && (
             <>
               <div className="section">Merchant</div>
-              <RailLink to="/payments">Payments</RailLink>
+              <RailLink to="/payments" icon={<Receipt size={17} />}>Payments</RailLink>
               {MERCHANT_STUBS.map((label) => (
-                <RailLink key={label} to={`/${label.toLowerCase()}`}>{label}</RailLink>
+                <RailLink key={label} to={`/${label.toLowerCase()}`} icon={STUB_ICONS[label]}>{label}</RailLink>
               ))}
-              <RailLink to="/sandbox">Sandbox</RailLink>
+              <RailLink to="/sandbox" icon={<FlaskConical size={17} />}>Sandbox</RailLink>
             </>
           )}
           {canAnalyst && (
             <>
               <div className="section">Fraud</div>
-              <RailLink to="/risk">Risk / Auto-Clear</RailLink>
+              <RailLink to="/risk" icon={<ShieldHalf size={17} />}>Risk / Auto-Clear</RailLink>
             </>
           )}
         </nav>
@@ -79,9 +95,10 @@ function Shell({ role, onSignOut }: { role: string; onSignOut: () => void }) {
   );
 }
 
-function RailLink({ to, children }: { to: string; children: React.ReactNode }) {
+function RailLink({ to, icon, children }: { to: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <NavLink to={to} className={({ isActive }) => (isActive ? "active" : "")}>
+      {icon}
       {children}
     </NavLink>
   );
@@ -107,7 +124,8 @@ function Login({ onDone }: { onDone: (role: string) => void }) {
 
   return (
     <div className="login panel">
-      <h2>Sign in</h2>
+      <LogoMark />
+      <h2 style={{ marginTop: 14 }}>Sign in to FinPay</h2>
       <form onSubmit={submit}>
         <div className="field"><label>Email</label>
           <input value={email} onChange={(e) => setEmail(e.target.value)} /></div>
