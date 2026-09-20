@@ -180,19 +180,87 @@ volume, success rate, or attention queue") and **§I Phase 6 item 19** (`GET /v1
 
 ---
 
+---
+
+## Round 3 — reuse the primitives, and fix what reuse exposes
+
+Two backlog items from round 2, both about not writing things twice.
+
+### Shared primitives
+
+`Kpi` and `LegendRow` moved out of `OverviewView` into `src/components/stats.tsx`. The Risk
+console needed the identical shapes, and the alternative was a copy. The breakdown row in
+particular (dot → label → proportional bar → right-aligned figure) is the pattern lifted from
+Tremor's own cards, and it is what makes a pile of counts read as a composition instead of
+six unrelated tiles.
+
+### The Risk console's fraud panel
+
+Was six `Stat` tiles of equal visual weight — three percentages and three counts, with no
+indication that the counts are parts of one whole. Now: three KPI cards for the rates, then a
+breakdown list for the four outcomes, which sum to `totalFraud` so the bars are a real
+composition. Caught-before-capture, caught-after-capture (the Day 9 write-off), still-pending,
+and missed now visibly partition the fraud population.
+
+The Auto-Clear panel above it was **deliberately left alone** this round — its eight tiles
+carry carefully-worded semantics (the `null` review-reduction baseline, the false-auto-clear
+denominator) that are worth more than the visual tidying, and restructuring them is a copy
+review, not a CSS change. It stays on the backlog.
+
+### Review queue actions → a real menu
+
+Four ghost buttons crammed edge-to-edge in one table cell became a single `Actions ⌄` trigger
+over a Radix `DropdownMenu`: a **Decide** group (Claim for me / Clear — legitimate / Reject —
+fraud, the destructive one in red), a separator, then Explain this flag. Radix supplies the
+behaviour (focus trap, keyboard nav, dismiss, portal); every visual comes from the existing
+tokens, so nothing of the library's default look was inherited.
+
+### Two defects this round surfaced — both found by looking, not by tests
+
+1. **`text-transform: capitalize` on `.legend-label`.** Written in round 2 for the Overview's
+   enum-shaped statuses (`PENDING_REVIEW`). The moment the same component was reused for the
+   Risk console's prose labels, it rendered "Caught Before Capture (Review)" — Title Case on a
+   sentence. Removed the CSS transform entirely and moved the formatting to the one call site
+   that actually needs it (`sentenceCase` in `OverviewView`). The general lesson: presentation
+   transforms belong with the caller that knows the shape of its data, not on a shared class.
+2. **The volume chart rendered empty.** Initially looked like a regression from the `Kpi`
+   refactor. It wasn't — diagnosed by inspecting the SVG rather than guessing: the area path
+   was perfectly flat at the baseline *while the Y-axis domain had correctly scaled to
+   ₹600,000*, which proved the data had arrived and only the drawing was missing. Recharts
+   animates an `Area` up from the baseline on mount, so anything sampling the page mid-animation
+   sees an empty chart. Re-reading the DOM a few seconds later showed it filled in, confirming
+   it. Fixed with `isAnimationActive={false}` — a dashboard should draw its data immediately,
+   and entry motion communicates nothing here (it is also precisely the decorative animation
+   the round-0 checklist flags).
+
+### Verified
+
+- Typecheck clean; backend still 102/102 from earlier this round (no backend change in round 3).
+- Radix menu opens, is styled by the token set, and shows the destructive action in red.
+- Chart draws filled **1 second** after a hard reload with animation disabled — the earlier
+  empty capture is no longer reproducible.
+- Breakdown labels render as prose on the Risk console and as sentence-case status names on the
+  Overview, from the same component.
+- **Dev-only noise, not an app defect:** Vite's HMR WebSocket repeatedly fails to connect in
+  this preview pane, flooding the console and meaning edits do not hot-apply — every
+  verification here was done against a hard reload for that reason. A production build ships no
+  such socket.
+
+---
+
 ## Backlog for the next round (not yet done)
 
-- **Review queue action buttons** (`claim` / `clear` / `reject` / `explain`) are four small
-  ghost buttons crammed edge-to-edge in one table cell. Radix's dropdown-menu primitive is now
-  installed specifically for this; not yet wired.
+- **The Auto-Clear panel's eight tiles** still need the composition treatment the fraud panel
+  now has — deferred deliberately above, because the copy carries real meaning.
 - **No customer avatar/identicon** anywhere a customer ref appears — initials-in-a-circle, as
   Razorpay and Stripe both do.
 - **KPI cards carry no trend** — no sparkline or period-over-period delta, which every
   reference dashboard shows. Needs a second time window from the summary endpoint.
-- **The Risk console still opens on raw stat tiles**, not the chart treatment the Overview now
-  has; its fraud-caught/missed split is the obvious candidate for the same legend-list pattern.
 - **Payments table has no row-level affordance** — no hover action, no bulk select, no column
   sort (server-side sort isn't implemented either).
+- **The Overview chart has one series.** Captured volume alone; failed/refunded as comparison
+  series would make it a real analytics view rather than a single line.
 - **Dark mode** still not attempted (references are light-first); it needs its own token pass,
   not a naive invert.
-- **Cashfree's actual dashboard** deserves a proper look as the closest regional competitor.
+- **Cashfree's actual dashboard** deserves a proper look as the closest regional competitor —
+  the marketing page captured mid-animation in round 2 gave nothing usable.

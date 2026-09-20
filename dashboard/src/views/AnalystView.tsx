@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { ChevronDown } from "lucide-react";
 import { api, formatMoney } from "../api";
+import { Kpi, LegendRow } from "../components/stats";
 
 type Metrics = {
   flaggedTotal: number; pendingHuman: number; decided: number; autoCleared: number;
@@ -197,31 +200,38 @@ export function AnalystView() {
           </p>
         )}
         {fraudMetrics && (
-          <div className="grid">
-            <Stat
-              n={fraudMetrics.recallPct == null ? "—" : `${fraudMetrics.recallPct}%`}
-              l={`recall — fraud caught (${fraudMetrics.fraudCaught} of ${fraudMetrics.totalFraud})`}
-              good={fraudMetrics.recallPct != null && fraudMetrics.recallPct >= 90}
-            />
-            <Stat
-              n={fraudMetrics.precisionPct == null ? "—" : `${fraudMetrics.precisionPct}%`}
-              l="precision — of everything blocked, how much was real fraud"
-              good={fraudMetrics.precisionPct != null && fraudMetrics.precisionPct >= 90}
-            />
-            <Stat
-              n={fraudMetrics.falsePositiveRatePct == null ? "—" : `${fraudMetrics.falsePositiveRatePct}%`}
-              l={`false-positive rate (${fraudMetrics.legitWronglyRejected} of ${fraudMetrics.totalLegit} legit)`}
-              bad={fraudMetrics.falsePositiveRatePct != null && fraudMetrics.falsePositiveRatePct > 20}
-            />
-            <Stat n={fraudMetrics.fraudCaughtByReview} l="fraud caught before capture (review)" good />
-            <Stat n={fraudMetrics.fraudCaughtByWriteOff} l="fraud caught after capture (settlement write-off)" good />
-            <Stat
-              n={fraudMetrics.fraudMissed}
-              l={`fraud missed — reached the merchant (${formatMoney(fraudMetrics.fraudMissedMinor, "INR")})`}
-              bad={fraudMetrics.fraudMissed > 0}
-              good={fraudMetrics.fraudMissed === 0}
-            />
-          </div>
+          <>
+            <div className="kpi-row" style={{ marginBottom: 18 }}>
+              <Kpi
+                label="Recall"
+                value={fraudMetrics.recallPct == null ? "—" : `${fraudMetrics.recallPct}%`}
+                sub={`fraud caught — ${fraudMetrics.fraudCaught} of ${fraudMetrics.totalFraud}`}
+              />
+              <Kpi
+                label="Precision"
+                value={fraudMetrics.precisionPct == null ? "—" : `${fraudMetrics.precisionPct}%`}
+                sub="of everything blocked, how much was real fraud"
+              />
+              <Kpi
+                label="False-positive rate"
+                value={fraudMetrics.falsePositiveRatePct == null ? "—" : `${fraudMetrics.falsePositiveRatePct}%`}
+                sub={`${fraudMetrics.legitWronglyRejected} of ${fraudMetrics.totalLegit} legit wrongly rejected`}
+              />
+            </div>
+            {/* Where the fraud in this population actually ended up — the four outcomes sum to
+                totalFraud, so the bars are a real composition rather than six unrelated tiles. */}
+            <ul className="legend-list">
+              <LegendRow color="#16824a" label="caught before capture (review)"
+                         value={fraudMetrics.fraudCaughtByReview} total={fraudMetrics.totalFraud} />
+              <LegendRow color="#0f7490" label="caught after capture (settlement write-off)"
+                         value={fraudMetrics.fraudCaughtByWriteOff} total={fraudMetrics.totalFraud} />
+              <LegendRow color="#8a5c07" label="still pending resolution"
+                         value={fraudMetrics.fraudStillPending} total={fraudMetrics.totalFraud} />
+              <LegendRow color="#b3261e"
+                         label={`missed — reached the merchant (${formatMoney(fraudMetrics.fraudMissedMinor, "INR")})`}
+                         value={fraudMetrics.fraudMissed} total={fraudMetrics.totalFraud} />
+            </ul>
+          </>
         )}
         <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
           Scored against the hidden ground truth (<span className="mono">actually_fraudulent</span>) — evaluation
@@ -319,14 +329,35 @@ export function AnalystView() {
                 <td>{r.reviewerType ? <span className={`pill ${r.reviewerType}`}>{r.reviewerType}</span> : "-"}</td>
                 <td>{r.decision ? <span className={`pill ${r.decision}`}>{r.decision}</span> : "-"}</td>
                 <td style={{ whiteSpace: "nowrap" }}>
-                  {r.queueStatus === "PENDING" ? (
-                    <>
-                      {!r.assignedTo && <button className="ghost small" onClick={() => claim(r.id)}>claim</button>}{" "}
-                      <button className="ghost small" onClick={() => decide(r.id, "CLEAR")}>clear</button>{" "}
-                      <button className="ghost small" onClick={() => decide(r.id, "REJECT")}>reject</button>{" "}
-                    </>
-                  ) : null}
-                  <button className="ghost small" onClick={() => explain(r.paymentId)}>explain</button>
+                  <DropdownMenu.Root>
+                    <DropdownMenu.Trigger asChild>
+                      <button className="ghost small">Actions <ChevronDown size={13} /></button>
+                    </DropdownMenu.Trigger>
+                    <DropdownMenu.Portal>
+                      <DropdownMenu.Content className="menu" align="end" sideOffset={4}>
+                        {r.queueStatus === "PENDING" && (
+                          <>
+                            <div className="menu-label">Decide</div>
+                            {!r.assignedTo && (
+                              <DropdownMenu.Item className="menu-item" onSelect={() => claim(r.id)}>
+                                Claim for me
+                              </DropdownMenu.Item>
+                            )}
+                            <DropdownMenu.Item className="menu-item" onSelect={() => decide(r.id, "CLEAR")}>
+                              Clear — legitimate
+                            </DropdownMenu.Item>
+                            <DropdownMenu.Item className="menu-item danger" onSelect={() => decide(r.id, "REJECT")}>
+                              Reject — fraud
+                            </DropdownMenu.Item>
+                            <DropdownMenu.Separator className="menu-sep" />
+                          </>
+                        )}
+                        <DropdownMenu.Item className="menu-item" onSelect={() => explain(r.paymentId)}>
+                          Explain this flag
+                        </DropdownMenu.Item>
+                      </DropdownMenu.Content>
+                    </DropdownMenu.Portal>
+                  </DropdownMenu.Root>
                   {explains[r.paymentId] && (
                     <details className="explain" open>
                       <summary>{explains[r.paymentId].model}</summary>

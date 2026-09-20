@@ -286,7 +286,30 @@ details.explain summary { cursor: pointer; color: var(--p-600); font-weight: 500
 }
 .legend-list li:last-child { border-bottom: none; }
 .legend-dot { width: 8px; height: 8px; border-radius: 999px; }
-.legend-label { font-size: 13px; color: var(--n-700); text-transform: capitalize; }
+/* No text-transform here: these labels are prose ("caught before capture (review)"), and
+   capitalize would Title-Case Every Word. Callers pass display-ready text. */
+.legend-label { font-size: 13px; color: var(--n-700); }
 .legend-bar { height: 6px; background: var(--n-50); border-radius: 999px; overflow: hidden; }
 .legend-bar span { display: block; height: 100%; border-radius: 999px; }
 .legend-value { text-align: right; font-size: 13px; font-weight: 600; color: var(--n-800); }
+
+/* ---------- dropdown menu (Radix primitive, styled by these tokens) ----------
+   Replaces four ghost buttons crammed edge-to-edge in one review-queue cell. */
+.menu {
+  min-width: 176px; background: var(--n-0); border: 1px solid var(--border);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-lg); padding: 5px;
+  z-index: 40;
+}
+.menu-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px; font-size: 13px;
+  color: var(--n-700); border-radius: var(--radius-sm); cursor: pointer; user-select: none;
+  outline: none;
+}
+.menu-item[data-highlighted] { background: var(--p-50); color: var(--p-700); }
+.menu-item.danger { color: var(--bad-text); }
+.menu-item.danger[data-highlighted] { background: var(--bad-bg); color: var(--bad-text); }
+.menu-sep { height: 1px; background: var(--n-50); margin: 4px 0; }
+.menu-label {
+  padding: 6px 10px 4px; font-size: 10.5px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--n-400);
+}

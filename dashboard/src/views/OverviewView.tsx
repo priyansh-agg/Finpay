@@ -4,6 +4,7 @@ import {
 } from "recharts";
 import { TrendingUp, TriangleAlert, Wallet, Percent } from "lucide-react";
 import { api, formatMoney } from "../api";
+import { Kpi } from "../components/stats";
 
 type DailyPoint = { date: string; capturedMinor: number; count: number };
 type StatusSlice = { status: string; count: number };
@@ -32,6 +33,13 @@ const STATUS_COLOR: Record<string, string> = {
 };
 const NEUTRAL = "#848aa3";
 const PRIMARY = "#2f5fe0";
+
+/** PENDING_REVIEW -> "Pending review". Done here, not in CSS, so prose labels elsewhere in the
+ *  same list component aren't Title-Cased word by word. */
+const sentenceCase = (s: string) => {
+  const t = s.replaceAll("_", " ").toLowerCase();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
 
 /**
  * The Overview screen (design round 2). Every reference dashboard — Razorpay's home, Stripe's,
@@ -107,8 +115,12 @@ export function OverviewView() {
                        tick={{ fontSize: 11, fill: "#676d87" }}
                        tickFormatter={(v: number) => `₹${v.toLocaleString()}`} />
                 <Tooltip content={<VolumeTooltip />} cursor={{ stroke: "#ccd1e0" }} />
+                {/* Drawn immediately, not animated in. Recharts grows an Area up from the
+                    baseline on mount, so anything that samples the page mid-animation — a
+                    screenshot, a slow frame, a background tab — sees an empty chart. Entry
+                    motion communicates nothing here; determinism does. */}
                 <Area type="monotone" dataKey="captured" stroke={PRIMARY} strokeWidth={2}
-                      fill="url(#volumeFill)" />
+                      fill="url(#volumeFill)" isAnimationActive={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -129,7 +141,7 @@ export function OverviewView() {
             {summary.statusCounts.map((s) => (
               <li key={s.status}>
                 <span className="legend-dot" style={{ background: STATUS_COLOR[s.status] ?? NEUTRAL }} />
-                <span className="legend-label">{s.status.replaceAll("_", " ").toLowerCase()}</span>
+                <span className="legend-label">{sentenceCase(s.status)}</span>
                 <span className="legend-bar">
                   <span style={{
                     width: `${Math.max(2, (s.count / summary.totalPayments) * 100)}%`,
@@ -143,21 +155,6 @@ export function OverviewView() {
         )}
       </div>
     </>
-  );
-}
-
-function Kpi({ icon, tone, label, value, sub }: {
-  icon: React.ReactNode; tone: string; label: string; value: string; sub: string;
-}) {
-  return (
-    <div className="kpi">
-      <div className="kpi-head">
-        <span className={`kpi-icon ${tone}`}>{icon}</span>
-        <span className="kpi-label">{label}</span>
-      </div>
-      <div className="kpi-value">{value}</div>
-      <div className="kpi-sub">{sub}</div>
-    </div>
   );
 }
 
