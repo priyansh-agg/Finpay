@@ -237,3 +237,56 @@ details.explain summary { cursor: pointer; color: var(--p-600); font-weight: 500
 }
 .subtabs button:hover { color: var(--n-900); }
 .subtabs button.active { color: var(--p-700); border-bottom-color: var(--p-500); font-weight: 600; }
+
+/* ---------- page header ----------
+   Every screen before this had only a panel header, so nothing on the page was bigger than a
+   12px all-caps label — no title, no orientation. */
+.page-head { margin-bottom: 20px; }
+.page-head h1 { font-size: 22px; font-weight: 700; margin: 0 0 4px; letter-spacing: -.3px; }
+.page-head p { margin: 0; color: var(--n-500); font-size: 13.5px; max-width: 70ch; }
+
+/* ---------- KPI cards (Overview) ---------- */
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(212px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.kpi {
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm); padding: 18px 20px;
+}
+.kpi-head { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; }
+.kpi-icon {
+  width: 28px; height: 28px; border-radius: var(--radius-sm); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.kpi-icon.blue { background: var(--p-50); color: var(--p-600); }
+.kpi-icon.green { background: var(--good-bg); color: var(--good-text); }
+.kpi-icon.amber { background: var(--warn-bg); color: var(--warn-text); }
+.kpi-icon.violet { background: #eef0fb; color: #4a4a9e; }
+.kpi-icon.grey { background: var(--n-50); color: var(--n-400); }
+.kpi-label { font-size: 12.5px; color: var(--n-500); font-weight: 500; }
+.kpi-value {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 24px; font-weight: 600; letter-spacing: -.4px; color: var(--n-900);
+}
+.kpi-sub { font-size: 12px; color: var(--n-400); margin-top: 6px; }
+
+/* ---------- chart ---------- */
+.chart-wrap { width: 100%; height: 252px; margin-top: 2px; }
+.chart-tip {
+  background: var(--n-0); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md); padding: 9px 11px;
+}
+.chart-tip-date { font-size: 11px; color: var(--n-500); margin-bottom: 3px; }
+.chart-tip-value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 14px; }
+.chart-tip-sub { font-size: 11px; color: var(--n-400); margin-top: 2px; }
+
+/* ---------- status legend list (the Tremor/Razorpay breakdown pattern) ---------- */
+.legend-list { list-style: none; margin: 0; padding: 0; }
+.legend-list li {
+  display: grid; grid-template-columns: 8px 140px 1fr 60px; align-items: center; gap: 12px;
+  padding: 9px 0; border-bottom: 1px solid var(--n-50);
+}
+.legend-list li:last-child { border-bottom: none; }
+.legend-dot { width: 8px; height: 8px; border-radius: 999px; }
+.legend-label { font-size: 13px; color: var(--n-700); text-transform: capitalize; }
+.legend-bar { height: 6px; background: var(--n-50); border-radius: 999px; overflow: hidden; }
+.legend-bar span { display: block; height: 100%; border-radius: 999px; }
+.legend-value { text-align: right; font-size: 13px; font-weight: 600; color: var(--n-800); }

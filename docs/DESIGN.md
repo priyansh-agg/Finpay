@@ -104,16 +104,95 @@ badge), `dashboard/src/api.ts` (`formatMoney`), `dashboard/src/CheckoutPage.tsx`
 
 ---
 
+---
+
+## Round 2 — the Overview screen, on real components
+
+**Brief for this round:** widen the reference set, and stop hand-rolling things that good
+libraries already solve.
+
+### The reference list
+
+| Site | Visited | What it contributed |
+|---|---|---|
+| [Razorpay dashboard](https://razorpay.com/docs/payments/dashboard/home/) | ✅ round 1 | The primary model: icon rail, light canvas, KPI-first home |
+| [Stripe](https://stripe.com/payments) | ✅ round 1 | Independent confirmation of the same language; panel/badge/slider detailing |
+| [Tremor](https://tremor.so) | ✅ round 2 | The KPI-card anatomy actually copied here: small grey label → oversized number → chart → legend list with right-aligned counts. Also settled the library question (below) |
+| [Mercury](https://mercury.com) | ✅ round 2 | Marketing-led; confirmed the restrained-neutral + single-accent direction, little product UI exposed publicly |
+| [Linear](https://linear.app) | ⚠️ round 2 | Rendered blank — heavy lazy-load/animation defeats a static screenshot. No signal taken from it rather than guessing |
+| [Cashfree](https://cashfree.com) | ⚠️ round 2 | Captured mid-animation; direct Razorpay competitor, worth a revisit for its dashboard specifically |
+
+### Library decision (the "don't build from scratch" brief)
+
+- **Tremor — rejected, with a reason.** It is the closest thing to a drop-in fintech dashboard
+  kit, but it is Tailwind-native, and this project has a hand-authored token stylesheet with no
+  Tailwind. Adopting it meant a Tailwind migration for chart components — the expensive path.
+- **Recharts — adopted.** It is what Tremor itself wraps, it is framework-CSS-agnostic, and it
+  takes concrete colour values that can be pointed straight at the existing tokens.
+- **Radix UI primitives — installed** for the menu work still on the backlog (unstyled and
+  CSS-agnostic, so they inherit the token system rather than fighting it).
+- **lucide-react** (round 1) continues as the icon set.
+
+Net: one chart library and one primitive library, both chosen so the round-1 token system stays
+the single source of styling truth. No component kit's default look was inherited — which is
+the specific failure mode ("untouched shadcn/Tailwind defaults") the round-0 checklist names.
+
+### What was built
+
+The biggest structural gap from round 1's backlog: **there was no Overview screen.** A merchant
+landed directly on a filterable table, which answers "find one payment" but never "how is the
+account doing". Every reference dashboard opens on a roll-up instead. This also closes two
+items the project's own audit already had open — **P2-1** ("no merchant overview — no balance,
+volume, success rate, or attention queue") and **§I Phase 6 item 19** (`GET /v1/analytics/summary`).
+
+- **Backend:** new `analytics` module — `AnalyticsService` + `AnalyticsController` serving
+  `GET /v1/analytics/summary`. A merchant gets their own numbers; an analyst/admin gets the
+  platform-wide roll-up, the same scoping rule `PaymentController.resolveViewable()` uses.
+  Warm-up scenery is excluded from every figure, the same lesson Day 6 and Day 10 both learned.
+  The 14-day series `LEFT JOIN`s off `generate_series` so an empty day is a zero, not a gap that
+  makes the chart lie.
+- **"Awaiting settlement" rather than "balance"** — deliberately computed from
+  `settled_at IS NULL AND written_off_at IS NULL` on captured payments (the Day 9 holdback
+  window) rather than from ledger account balances. It is the number a merchant actually wants
+  ("what is owed to me but not yet sent"), and it avoids inventing a second, competing
+  definition of balance alongside the ledger's.
+- **Frontend:** `OverviewView` — a 4-up KPI row (tinted icon tiles, mono tabular figures), a
+  Recharts area chart with a gradient fill and a custom money-formatted tooltip, and a
+  status-breakdown legend list built on the Tremor pattern. New `.page-head` style gives every
+  screen a real title; before this, nothing on any page was larger than a 12px all-caps panel
+  label.
+- Overview is now the default landing route for merchant-capable roles.
+
+### Verified
+
+- **102/102 backend tests green** (100 existing + 2 new).
+- **Mutation check:** neutralising the warm-up filter across all 9 aggregate queries
+  (`is_warmup = false` → `is_warmup IN (true, false)`) failed exactly
+  `warmupScenery_isExcludedFromEveryNumber` and nothing else; restored byte-identical; green
+  again.
+- **Endpoint checked over HTTP** before any UI existed for it: 579 payments, 74.44% success,
+  ₹296,524.48 awaiting settlement, a full 14-point series.
+- **Live at 1440×950:** KPI row resolves 4-across, chart axes and gradient render, legend bars
+  are proportional, zero console errors on a fresh tab.
+- **Honest note:** the volume chart shows a single spike, because every row in the dev database
+  was seeded within one session. That is the data being truthful, not the chart being broken —
+  no synthetic back-dating was added to make the demo prettier.
+
+---
+
 ## Backlog for the next round (not yet done)
 
-- **No Overview/home page.** Razorpay's own reference lands on a KPI summary + "how can I help
-  you" moment before any table. FinPay's merchant role lands straight on the Payments table —
-  functional, but skips the "orient the user" moment the reference treats as the front door.
 - **Review queue action buttons** (`claim` / `clear` / `reject` / `explain`) are four small
-  ghost buttons crammed edge-to-edge in one table cell — readable but tight; worth a proper
-  menu or clearer grouping once there's time to touch `AnalystView.tsx`'s table markup.
-- **No customer avatar/identicon** anywhere a customer ref appears — a small, cheap "feels like
-  a real product" touch Razorpay/Stripe both use (initials-in-a-circle) that hasn't been done
-  yet.
-- **Dark mode** was not attempted this round (the reference dashboards are light-first); if
-  wanted later it needs its own token pass, not a naive invert.
+  ghost buttons crammed edge-to-edge in one table cell. Radix's dropdown-menu primitive is now
+  installed specifically for this; not yet wired.
+- **No customer avatar/identicon** anywhere a customer ref appears — initials-in-a-circle, as
+  Razorpay and Stripe both do.
+- **KPI cards carry no trend** — no sparkline or period-over-period delta, which every
+  reference dashboard shows. Needs a second time window from the summary endpoint.
+- **The Risk console still opens on raw stat tiles**, not the chart treatment the Overview now
+  has; its fraud-caught/missed split is the obvious candidate for the same legend-list pattern.
+- **Payments table has no row-level affordance** — no hover action, no bulk select, no column
+  sort (server-side sort isn't implemented either).
+- **Dark mode** still not attempted (references are light-first); it needs its own token pass,
+  not a naive invert.
+- **Cashfree's actual dashboard** deserves a proper look as the closest regional competitor.

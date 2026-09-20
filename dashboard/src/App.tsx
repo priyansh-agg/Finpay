@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate, NavLink } from "react-router-dom";
 import {
-  Receipt, ShoppingBag, Undo2, Landmark, Users, FlaskConical, ShieldHalf,
+  LayoutDashboard, Receipt, ShoppingBag, Undo2, Landmark, Users, FlaskConical, ShieldHalf,
 } from "lucide-react";
 import { auth, login } from "./api";
 import { AnalystView } from "./views/AnalystView";
@@ -9,6 +9,7 @@ import { PaymentsView } from "./views/PaymentsView";
 import { PaymentDetailView } from "./views/PaymentDetailView";
 import { SandboxView } from "./views/SandboxView";
 import { ComingSoonView } from "./views/ComingSoonView";
+import { OverviewView } from "./views/OverviewView";
 
 function LogoMark() {
   return <span className="logo-mark">F</span>;
@@ -63,6 +64,7 @@ function Shell({ role, onSignOut }: { role: string; onSignOut: () => void }) {
           {canMerchant && (
             <>
               <div className="section">Merchant</div>
+              <RailLink to="/overview" icon={<LayoutDashboard size={17} />}>Overview</RailLink>
               <RailLink to="/payments" icon={<Receipt size={17} />}>Payments</RailLink>
               {MERCHANT_STUBS.map((label) => (
                 <RailLink key={label} to={`/${label.toLowerCase()}`} icon={STUB_ICONS[label]}>{label}</RailLink>
@@ -79,6 +81,7 @@ function Shell({ role, onSignOut }: { role: string; onSignOut: () => void }) {
         </nav>
         <main className="main">
           <Routes>
+            <Route path="/overview" element={canMerchant ? <OverviewView /> : <Navigate to="/risk" replace />} />
             <Route path="/payments" element={canMerchant ? <PaymentsView /> : <Navigate to="/risk" replace />} />
             <Route path="/payments/:id" element={canMerchant ? <PaymentDetailView /> : <Navigate to="/risk" replace />} />
             {MERCHANT_STUBS.map((label) => (
@@ -86,8 +89,8 @@ function Shell({ role, onSignOut }: { role: string; onSignOut: () => void }) {
                      element={canMerchant ? <ComingSoonView label={label} /> : <Navigate to="/risk" replace />} />
             ))}
             <Route path="/sandbox" element={canMerchant ? <SandboxView /> : <Navigate to="/risk" replace />} />
-            <Route path="/risk" element={canAnalyst ? <AnalystView /> : <Navigate to="/payments" replace />} />
-            <Route path="*" element={<Navigate to={canMerchant ? "/payments" : "/risk"} replace />} />
+            <Route path="/risk" element={canAnalyst ? <AnalystView /> : <Navigate to="/overview" replace />} />
+            <Route path="*" element={<Navigate to={canMerchant ? "/overview" : "/risk"} replace />} />
           </Routes>
         </main>
       </div>
