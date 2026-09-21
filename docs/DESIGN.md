@@ -288,19 +288,87 @@ simulator output.
 
 ---
 
+---
+
+## Round 5 — a second series, a real comparison, and a process failure worth recording
+
+### Orphan cleanup, verified rather than assumed
+
+The round-4 backlog said `.stat` / `.grid` "may now be orphaned — verify before deleting; do not
+assume." Verified: no view references either class and no `Stat` identifier survives anywhere.
+Six CSS rules removed. This is the whole reason that item was written as an instruction to check
+rather than an instruction to delete.
+
+### The chart became a comparison
+
+`AnalyticsService` now returns per-day **failed/voided** volume alongside captured, and a
+period-over-period comparison: the charted window, the equally-long window immediately before it,
+and the delta between them.
+
+One deliberate decision: **the delta describes the charted window, never the lifetime KPI.**
+Comparing a lifetime total against a 14-day period would look like insight and mean nothing. The
+delta chip therefore lives in the chart panel's header, not on the "Captured volume" card.
+
+And when the prior window is empty there is **no honest percentage change from zero**, so the API
+returns null and the UI says "no prior period to compare" rather than inventing a number. That
+null-guard is the thing the new test pins.
+
+The chart itself now draws two gradient-filled series with a Recharts legend, and the tooltip
+reports failed count and value alongside captured.
+
+### Payments rows are clickable
+
+The whole row navigates, not just the id link — what every reference dashboard does. The id
+remains a real anchor; the row handler only widens the target. Verified by clicking the *method*
+cell rather than the link, so the test actually exercises the row handler.
+
+### Cashfree — closed
+
+Visited their developer docs. Same regional convention confirmed (light canvas, restrained single
+accent, code-sample cards), but their merchant dashboard sits behind login and, unlike Razorpay,
+they publish no product screenshots. Closing this backlog item as "not publicly available" rather
+than leaving it open forever.
+
+### Two things caught that weren't design problems
+
+1. **A stale JVM served the endpoint check.** The new fields were missing from
+   `/v1/analytics/summary`, which looked like a backend bug. It wasn't: `spring-boot:run` forks a
+   JVM, and the `pkill -f spring-boot:run` used to shut down after every previous round only ever
+   matched the *Maven wrapper* — the forked child survived. **Yesterday's** gateway was still
+   holding `:8080`, my new one failed to bind, and the health check happily reported UP because
+   something was listening. Diagnosed with `lsof -ti tcp:8080` and the startup log ("Port 8080 was
+   already in use"), not by guessing. The tests were never affected — they run in-process under
+   Maven, never against `:8080`. **Lesson: kill by port, and never treat a health check as proof
+   that *your* build is the one running.**
+2. **`non_null` serialisation.** The gateway sets `default-property-inclusion: non_null`, so a
+   null percentage is *absent* from the JSON, not present-and-null. The reads already used
+   `== null` (which catches `undefined`), so behaviour was correct, but the TypeScript types
+   claimed the fields were always present. Types corrected to match the wire format.
+
+### Verified
+
+- **103/103 backend tests** (102 + 1 new).
+- **Mutation check:** removing the delta's null-guard makes an empty prior window divide by zero →
+  `Infinity` → `Math.round` saturates to `9.223372036854776E16`. Exactly one test failed, with
+  that value in the diagnostic — a vivid demonstration of the fabricated percentage the guard
+  prevents. Restored byte-identical; green again.
+- Endpoint checked over HTTP (against a correctly-running build this time): failed series carries
+  real data, delta correctly absent.
+- Live: two series render with legend and gradients, the delta chip shows its honest fallback,
+  row-click navigates from a non-link cell, console clean apart from the expected pre-login 401s.
+
+---
+
 ## Backlog for the next round (not yet done)
 
-- **`.stat` / `.grid` CSS may now be orphaned** — `Stat` is gone, but other views may still use
-  those classes. Verify before deleting; do not assume.
-- **KPI cards carry no trend** — no sparkline or period-over-period delta, which every
-  reference dashboard shows. Needs a second time window from the summary endpoint.
-- **Payments table has no row-level affordance** — no full-row click, no bulk select, no column
-  sort (server-side sort isn't implemented either). Scoped for this round, cut to keep the
-  change set honest.
-- **The Overview chart has one series.** Captured volume alone; failed/refunded as comparison
-  series would make it a real analytics view rather than a single line. Needs the daily query
-  extended.
-- **Dark mode** still not attempted (references are light-first); it needs its own token pass,
-  not a naive invert.
-- **Cashfree's actual dashboard** deserves a proper look as the closest regional competitor —
-  the marketing page captured mid-animation in round 2 gave nothing usable.
+- **Dark mode** — still not attempted, and still the one item that wants a product decision
+  first: every reference dashboard is light-first, so this is a choice rather than a gap. It
+  needs its own token pass, not a naive invert.
+- **KPI sparklines** — the period-over-period delta landed this round, but the cards still carry
+  no miniature trend line of their own.
+- **Payments column sort and bulk select** — server-side sort is not implemented, so sorting is
+  a backend change before it is a UI one.
+- **The Risk console has no time dimension at all** — no window, no delta, no chart. It now has
+  the composition treatment but every figure is a point-in-time total.
+- **Empty states are inconsistent** — Overview has a real one, the tables mostly say "none" in a
+  muted row.

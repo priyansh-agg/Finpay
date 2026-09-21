@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api, formatMoney } from "../api";
 
 export type Payment = {
@@ -29,6 +29,7 @@ export function PaymentsView() {
   const [result, setResult] = useState<PageResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -91,13 +92,13 @@ export function PaymentsView() {
 
       {err && <div className="err">{err}</div>}
 
-      <table>
+      <table className="rows-clickable">
         <thead>
           <tr><th>payment</th><th>status</th><th>risk</th><th style={{ textAlign: "right" }}>amount</th><th>method</th><th>created</th></tr>
         </thead>
         <tbody>
           {result?.items.map((p) => (
-            <tr key={p.id}>
+            <tr key={p.id} onClick={() => navigate(`/payments/${p.id}`)}>
               <td className="mono">
                 <Link to={`/payments/${p.id}`}>{p.id.slice(0, 8)}</Link>
               </td>

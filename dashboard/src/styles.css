@@ -150,12 +150,13 @@ main.main { flex: 1; max-width: 1240px; padding: 28px; min-width: 0; }
 }
 .empty-state h2 { text-transform: none; font-size: 15px; color: var(--n-700); }
 .empty-state p { max-width: 420px; margin-left: auto; margin-right: auto; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
-.stat { background: var(--n-25); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; }
-.stat .n { font-family: var(--font-mono); font-size: 25px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--n-900); }
-.stat .l { color: var(--n-500); font-size: 12px; margin-top: 6px; line-height: 1.4; }
-.stat.good .n { color: var(--good-text); }
-.stat.bad .n { color: var(--bad-text); }
+/* .grid / .stat lived here until design round 5. Both panels that used them moved to the
+   shared Kpi + LegendRow primitives, and a grep confirmed no remaining reference in any view
+   before these were removed. */
+
+/* A table whose rows navigate. The id cell is still a real link — this only widens the
+   target to the whole row, which is what every reference dashboard does. */
+.rows-clickable tbody tr { cursor: pointer; }
 
 /* ---------- tables ---------- */
 table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
@@ -267,6 +268,19 @@ details.explain summary { cursor: pointer; color: var(--p-600); font-weight: 500
   font-size: 24px; font-weight: 600; letter-spacing: -.4px; color: var(--n-900);
 }
 .kpi-sub { font-size: 12px; color: var(--n-400); margin-top: 6px; }
+
+/* ---------- panel header with a trailing stat ---------- */
+.panel-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 16px; flex-wrap: wrap;
+}
+.panel-head h2 { margin: 0; }
+.delta {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
+  padding: 3px 10px; border-radius: 999px; border: 1px solid transparent;
+}
+.delta.up { background: var(--good-bg); color: var(--good-text); border-color: var(--good-border); }
+.delta.down { background: var(--bad-bg); color: var(--bad-text); border-color: var(--bad-border); }
 
 /* ---------- chart ---------- */
 .chart-wrap { width: 100%; height: 252px; margin-top: 2px; }

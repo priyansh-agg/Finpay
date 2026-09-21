@@ -54,4 +54,27 @@ class AnalyticsSummaryTest extends AbstractIntegrationTest {
         assertThat(summary.daily()).as("always a full 14-day window, gaps filled with zeroes")
                 .hasSize(14);
     }
+
+    /**
+     * Design round 5 added a second chart series and a period-over-period delta. Both have a
+     * failure mode worth pinning: a failed payment silently not appearing in the series it is
+     * supposed to explain, and a delta inventing a percentage change out of an empty prior
+     * window (every fixture here is created "now", so the previous 14 days hold nothing).
+     */
+    @Test
+    void dailyCarriesTheFailedSeries_andTheDeltaStaysNullWithNoPriorPeriod() {
+        UUID merchantId = fixtures.newMerchant();
+        fixtures.newCapturedPayment(merchantId, 10_000);
+        fixtures.pay(merchantId, fixtures.newOrder(merchantId, 20_000).getId(), "CARD", "tok_declined");
+
+        AnalyticsService.Summary summary = analytics.summarize(merchantId);
+
+        assertThat(summary.daily().stream().mapToLong(AnalyticsService.DailyPoint::failedCount).sum())
+                .as("the declined payment lands in the failed series, not just the status counts")
+                .isEqualTo(1);
+        assertThat(summary.previousCapturedVolumeMinor())
+                .as("nothing was created 14-28 days ago").isZero();
+        assertThat(summary.capturedVolumeDeltaPct())
+                .as("no honest percentage change exists from an empty prior window").isNull();
+    }
 }
