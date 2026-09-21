@@ -5,7 +5,13 @@ customers "pay" through a simulated processor, money moves through a **real doub
 ledger**, and every transaction is **risk-scored before the processor is touched**.
 
 Built as a **modular monolith** (one Spring Boot service, enforced module boundaries) with a
-small Python ML sidecar. The design decisions and their rationale are frozen in
+small Python ML sidecar.
+
+> **[`docs/PROJECT.md`](docs/PROJECT.md) is the complete reference** — architecture, the payment
+> lifecycle, fraud detection, every API, the schema, how it was built, and an honest account of
+> what is real and what is simulated. Start there if you want the whole picture.
+
+The design decisions and their rationale are frozen in
 [`docs/architecture-freeze.md`](docs/architecture-freeze.md); the phased build plan is in
 [`docs/PHASES.md`](docs/PHASES.md).
 
